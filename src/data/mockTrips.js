@@ -1,0 +1,113 @@
+// Mock users for login (will be replaced by real auth + DB)
+export const MOCK_USERS = [
+  { id: 1, name: 'Ion Popescu',   email: 'dispatcher@dispo.com', password: 'demo123', role: 'dispatcher', avatar: 'IP' },
+  { id: 2, name: 'Mihai Dumitru', email: 'driver@dispo.com',     password: 'demo123', role: 'driver',     avatar: 'MD' },
+]
+
+export const MOCK_TRIPS = [
+  {
+    id: 1,
+    ref: 'TRP-2024-001',
+    status: 'active',
+    vehicle: 'B-123-XYZ',
+    origin: 'Cluj-Napoca',
+    destination: 'Bucharest',
+    date: '2024-03-24',
+    unread: 2,
+    lastMessage: 'Arrived at destination, waiting for unloading',
+    lastMessageTime: '14:32',
+  },
+  {
+    id: 2,
+    ref: 'TRP-2024-002',
+    status: 'active',
+    vehicle: 'CJ-45-ABC',
+    origin: 'Timișoara',
+    destination: 'Sibiu',
+    date: '2024-03-24',
+    unread: 0,
+    lastMessage: 'Leaving in 10 minutes',
+    lastMessageTime: '13:15',
+  },
+  {
+    id: 3,
+    ref: 'TRP-2024-003',
+    status: 'completed',
+    vehicle: 'TM-78-DEF',
+    origin: 'Brașov',
+    destination: 'Ploiești',
+    date: '2024-03-23',
+    unread: 0,
+    lastMessage: 'Trip completed. Thank you!',
+    lastMessageTime: 'Yesterday',
+  },
+  {
+    id: 4,
+    ref: 'TRP-2024-004',
+    status: 'archived',
+    vehicle: 'CT-22-GHI',
+    origin: 'Constanța',
+    destination: 'Galați',
+    date: '2024-02-10',
+    unread: 0,
+    lastMessage: 'Goods delivered per CMR',
+    lastMessageTime: '10 Feb',
+  },
+]
+
+export const MOCK_MESSAGES = {
+  1: [
+    {
+      id: 1,
+      sender: { name: 'Ion Popescu', avatar: 'IP', role: 'dispatcher' },
+      type: 'text',
+      content: 'Good morning! Trip TRP-2024-001 is confirmed. Departure at 08:00 from Cluj-Napoca.',
+      time: '07:45',
+    },
+    {
+      id: 2,
+      sender: { name: 'B-123-XYZ', avatar: 'BX', role: 'driver' },
+      type: 'text',
+      content: 'Good morning! Confirmed, I am at the truck.',
+      time: '07:58',
+    },
+    {
+      id: 3,
+      sender: { name: 'B-123-XYZ', avatar: 'BX', role: 'driver' },
+      type: 'status',
+      content: 'Departed to loading point',
+      statusKey: 'departed_loading',
+      time: '08:02',
+    },
+    {
+      id: 4,
+      sender: { name: 'B-123-XYZ', avatar: 'BX', role: 'driver' },
+      type: 'status',
+      content: 'Arrived at loading point',
+      statusKey: 'arrived_loading',
+      time: '08:45',
+    },
+    {
+      id: 5,
+      sender: { name: 'Ion Popescu', avatar: 'IP', role: 'dispatcher' },
+      type: 'text',
+      content: 'Copy that. Waiting for loading confirmation.',
+      time: '08:46',
+    },
+    {
+      id: 6,
+      sender: { name: 'B-123-XYZ', avatar: 'BX', role: 'driver' },
+      type: 'status',
+      content: 'Loading complete, departing to destination',
+      statusKey: 'loading_done',
+      time: '10:20',
+    },
+    {
+      id: 7,
+      sender: { name: 'B-123-XYZ', avatar: 'BX', role: 'driver' },
+      type: 'text',
+      content: 'Arrived at destination, waiting for unloading',
+      time: '14:32',
+    },
+  ],
+}

@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0a0a0f;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2d2d3d; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #3d3d50; }
+
+textarea { field-sizing: content; }
+
+/* Fix browser autofill white background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #0a0a0f inset !important;
+  -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+  caret-color: white;
+}
+
+@keyframes spin-loader {
+  to { transform: rotate(360deg); }
+}
