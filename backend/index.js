@@ -3,6 +3,11 @@ import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
+import { existsSync } from 'fs'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 import authRoutes     from './routes/auth.js'
 import groupRoutes    from './routes/groups.js'
@@ -43,6 +48,15 @@ app.use('/api/users',          usersRoutes)
 
 // Health check
 app.get('/api/health', (_, res) => res.json({ ok: true }))
+
+// Serve frontend in production
+const distPath = join(__dirname, '../dist')
+if (existsSync(distPath)) {
+  app.use(express.static(distPath))
+  app.get('*', (req, res) => {
+    res.sendFile(join(distPath, 'index.html'))
+  })
+}
 
 registerSocketHandlers(io)
 
