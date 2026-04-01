@@ -15,7 +15,14 @@ import { registerSocketHandlers } from './socket/handlers.js'
 
 const app    = express()
 const server = createServer(app)
-const CORS_ORIGIN = /^http:\/\/localhost(:\d+)?$/
+
+const CORS_ORIGIN = (origin, cb) => {
+  if (!origin) return cb(null, true)                        // server-to-server
+  if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true)
+  const allowed = process.env.FRONTEND_URL
+  if (allowed && origin === allowed) return cb(null, true)
+  cb(new Error('Not allowed by CORS'))
+}
 
 const io     = new Server(server, {
   cors: { origin: CORS_ORIGIN, credentials: true },
