@@ -437,7 +437,7 @@ function ProfileTab({ user, avatarPreview, uploading, fileInputRef, onFileClick,
         </button>
         {statusOpen && (
           <div
-            className="mt-1 rounded-xl overflow-hidden"
+            className="mt-1 rounded-xl overflow-hidden dropdown-in"
             style={{ background: 'var(--c-surface3)', border: '1px solid var(--c-border-md)' }}
           >
             {STATUSES.map(s => (

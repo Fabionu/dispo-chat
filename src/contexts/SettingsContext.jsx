@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { api } from '../services/api.js'
 import { getSocket } from '../services/socket.js'
 
@@ -182,6 +182,41 @@ export function SettingsProvider({ children, user, onUserUpdate }) {
       onUserUpdate?.(updated)
     } catch {}
   }, [onUserUpdate])
+
+  // ─── Auto-busy după 10 min inactivitate ──────────────────────
+  const idleTimer   = useRef(null)
+  const prevStatus  = useRef(null)
+
+  useEffect(() => {
+    if (!user) return
+    const IDLE_MS = 10 * 60 * 1000
+
+    const goIdle = () => {
+      const current = user.status || 'available'
+      if (current === 'offline' || current === 'busy' || current === 'dnd') return
+      prevStatus.current = current
+      updateStatus('busy')
+    }
+
+    const resetIdle = () => {
+      clearTimeout(idleTimer.current)
+      // Dacă eram în busy auto, revenim la statusul anterior
+      if (prevStatus.current) {
+        updateStatus(prevStatus.current)
+        prevStatus.current = null
+      }
+      idleTimer.current = setTimeout(goIdle, IDLE_MS)
+    }
+
+    const EVENTS = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll']
+    EVENTS.forEach(e => window.addEventListener(e, resetIdle, { passive: true }))
+    idleTimer.current = setTimeout(goIdle, IDLE_MS)
+
+    return () => {
+      clearTimeout(idleTimer.current)
+      EVENTS.forEach(e => window.removeEventListener(e, resetIdle))
+    }
+  }, [user, updateStatus])
 
   return (
     <SettingsContext.Provider value={{ appearance, updateAppearance, updateStatus, updateAvatar }}>
