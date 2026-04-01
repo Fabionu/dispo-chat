@@ -61,7 +61,7 @@ export default function NewDmModal({ onClose, onStarted }) {
               onFocus={e => { e.target.style.border = '1.5px solid rgba(255,255,255,0.18)'; e.target.style.background = 'rgba(255,255,255,0.04)' }}
               onBlur={e => { e.target.style.border = '1.5px solid rgba(255,255,255,0.07)'; e.target.style.background = 'rgba(255,255,255,0.025)' }}
             />
-            <p className="text-[11px] text-white/20 mt-1.5">Cere codul unic de 6 caractere persoanei cu care vrei să conversezi.</p>
+            <p className="text-[11px] text-white/20 mt-1.5">Ask the person you want to chat with for their 6-character unique code.</p>
           </div>
 
           {error && <p className="text-xs text-red-400/70">{error}</p>}

@@ -137,3 +137,36 @@ export const IconBell = ({ size = 14, stroke = 1.4, color = 'currentColor' }) =>
     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </svg>
 )
+
+export const IconReply = ({ size = 14, stroke = 1.4, color = 'currentColor' }) => (
+  <svg {...sw(size, stroke)} viewBox="0 0 24 24" stroke={color}>
+    <polyline points="9 17 4 12 9 7" />
+    <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+  </svg>
+)
+
+export const IconPencil = ({ size = 14, stroke = 1.4, color = 'currentColor' }) => (
+  <svg {...sw(size, stroke)} viewBox="0 0 24 24" stroke={color}>
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+  </svg>
+)
+
+export const IconPin = ({ size = 14, stroke = 1.4, color = 'currentColor' }) => (
+  <svg {...sw(size, stroke)} viewBox="0 0 24 24" stroke={color}>
+    <line x1="12" y1="17" x2="12" y2="22" />
+    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z" />
+  </svg>
+)
+
+export const IconChevronDown = ({ size = 14, stroke = 1.4, color = 'currentColor' }) => (
+  <svg {...sw(size, stroke)} viewBox="0 0 24 24" stroke={color}>
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+)
+
+export const IconCheckAll = ({ size = 12, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="2 13 6.5 17.5 14 8" />
+    <polyline points="9.5 13 14 17.5 22 8" />
+  </svg>
+)

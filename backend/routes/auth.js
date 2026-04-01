@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import pool from '../db/pool.js'
 import { generateUniqueCode } from '../lib/generateCode.js'
+import { requireAuth } from '../middleware/requireAuth.js'
 
 const router = Router()
 
@@ -85,13 +86,41 @@ router.get('/me', async (req, res) => {
   try {
     const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET)
     const { rows } = await pool.query(
-      `SELECT id, first_name, last_name, username, unique_code FROM users WHERE id = $1`,
+      `SELECT id, first_name, last_name, username, unique_code, avatar_url, status FROM users WHERE id = $1`,
       [payload.id]
     )
     if (!rows[0]) return res.status(404).json({ error: 'User not found' })
     res.json({ user: rows[0] })
   } catch {
     res.status(401).json({ error: 'Invalid token' })
+  }
+})
+
+// PATCH /api/auth/profile — update avatar_url and/or status
+router.patch('/profile', requireAuth, async (req, res) => {
+  const { avatar_url, status } = req.body
+  const VALID_STATUSES = ['available', 'busy', 'away', 'dnd', 'offline']
+
+  if (status && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' })
+  }
+
+  const sets = [], vals = []
+  if (avatar_url !== undefined) { sets.push(`avatar_url = $${sets.length + 1}`); vals.push(avatar_url) }
+  if (status    !== undefined) { sets.push(`status = $${sets.length + 1}`);     vals.push(status) }
+  if (!sets.length) return res.status(400).json({ error: 'Nothing to update' })
+
+  try {
+    vals.push(req.user.id)
+    const { rows } = await pool.query(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${vals.length}
+       RETURNING id, first_name, last_name, username, unique_code, avatar_url, status`,
+      vals
+    )
+    res.json({ user: rows[0] })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
   }
 })
 

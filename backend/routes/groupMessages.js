@@ -5,7 +5,6 @@ import { requireAuth } from '../middleware/requireAuth.js'
 const router = Router()
 router.use(requireAuth)
 
-// Verify user is member of group
 async function isMember(groupId, userId) {
   const { rows } = await pool.query(
     'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
@@ -25,17 +24,34 @@ router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT
-        m.id, m.type, m.content, m.created_at,
+        m.id, m.type, m.content, m.created_at, m.edited_at,
         u.id AS sender_id, u.first_name, u.last_name, u.username,
-        gm.role AS sender_role
+        gm.role AS sender_role,
+        m.reply_to_id,
+        rm.content   AS reply_content,
+        ru.first_name AS reply_first_name,
+        ru.last_name  AS reply_last_name
       FROM group_messages m
       JOIN users u ON u.id = m.sender_id
       JOIN group_members gm ON gm.group_id = m.group_id AND gm.user_id = m.sender_id
+      LEFT JOIN group_messages rm ON rm.id = m.reply_to_id
+      LEFT JOIN users ru ON ru.id = rm.sender_id
       WHERE m.group_id = $1
       ORDER BY m.created_at ASC
     `, [groupId])
 
-    res.json({ messages: rows })
+    // Fetch pinned message
+    const { rows: [pinRow] } = await pool.query(`
+      SELECT m.id, m.content, u.first_name, u.last_name
+      FROM groups g
+      LEFT JOIN group_messages m ON m.id = g.pinned_message_id
+      LEFT JOIN users u ON u.id = m.sender_id
+      WHERE g.id = $1
+    `, [groupId])
+
+    const pinned_message = pinRow?.id ? pinRow : null
+
+    res.json({ messages: rows, pinned_message })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
@@ -66,7 +82,45 @@ router.post('/', async (req, res) => {
   }
 })
 
-// GET /api/group-messages/:id/reads — who read this message
+// PATCH /api/group-messages/:id — edit own message within 5 min
+router.patch('/:id', async (req, res) => {
+  const msg_id = parseInt(req.params.id)
+  const { content } = req.body
+  if (!content?.trim()) return res.status(400).json({ error: 'content is required' })
+
+  try {
+    const { rows: [msg] } = await pool.query(
+      'SELECT id, group_id, sender_id, created_at FROM group_messages WHERE id = $1',
+      [msg_id]
+    )
+    if (!msg) return res.status(404).json({ error: 'Message not found' })
+    if (msg.sender_id !== req.user.id) return res.status(403).json({ error: 'Can only edit own messages' })
+
+    const ageMs = Date.now() - new Date(msg.created_at).getTime()
+    if (ageMs > 5 * 60 * 1000) {
+      return res.status(403).json({ error: 'Cannot edit messages older than 5 minutes' })
+    }
+
+    const { rows: [updated] } = await pool.query(
+      'UPDATE group_messages SET content = $1, edited_at = NOW() WHERE id = $2 RETURNING *',
+      [content.trim(), msg_id]
+    )
+
+    req.io.to(`group:${msg.group_id}`).emit('message:edited', {
+      id:         msg_id,
+      group_id:   msg.group_id,
+      content:    updated.content,
+      edited_at:  updated.edited_at,
+    })
+
+    res.json({ message: updated })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// GET /api/group-messages/:id/reads
 router.get('/:id/reads', async (req, res) => {
   const msg_id = parseInt(req.params.id)
   try {

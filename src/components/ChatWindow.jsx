@@ -1,10 +1,165 @@
-import { useState, useRef, useEffect } from 'react'
-import { IconSend, IconCheckCheck, IconMessage, IconUserPlus, IconX, IconMoreVertical } from './Icons.jsx'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { IconSend, IconCheckCheck, IconMessage, IconUserPlus, IconX, IconMoreVertical, IconReply, IconPencil, IconPin, IconChevronDown, IconSearch } from './Icons.jsx'
+import { useSettings, STATUSES, PATTERNS, THEMES } from '../contexts/SettingsContext.jsx'
 import { api } from '../services/api.js'
 import { getSocket } from '../services/socket.js'
 import { playSend, playReceive } from '../services/sounds.js'
 import AddMemberModal from './AddMemberModal.jsx'
 import GroupSettingsModal from './GroupSettingsModal.jsx'
+
+// ─── URL / highlight parsing ──────────────────────────────────
+const URL_RE = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
+
+function parseContent(text, highlight) {
+  const segs = []
+  const re = new RegExp('https?:\\/\\/[^\\s<>"{}|\\\\^`[\\]]+', 'gi')
+  re.lastIndex = 0
+  let last = 0, m
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) splitHighlight(text.slice(last, m.index), highlight, segs)
+    segs.push({ type: 'url', value: m[0] })
+    last = m.index + m[0].length
+  }
+  if (last < text.length) splitHighlight(text.slice(last), highlight, segs)
+  return segs
+}
+
+function splitHighlight(text, hl, out) {
+  if (!hl || hl.length < 2) { out.push({ type: 'text', value: text }); return }
+  const re = new RegExp(hl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+  let last = 0, m
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ type: 'text', value: text.slice(last, m.index) })
+    out.push({ type: 'match', value: m[0] })
+    last = m.index + m[0].length
+  }
+  if (last < text.length) out.push({ type: 'text', value: text.slice(last) })
+}
+
+function MessageText({ content, highlight }) {
+  const parts = parseContent(content, highlight)
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (p.type === 'url') return (
+          <a key={i} href={p.value} target="_blank" rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:opacity-80 transition-opacity break-all"
+            style={{ color: 'var(--c-accent)' }}
+            onClick={e => e.stopPropagation()}
+          >{p.value}</a>
+        )
+        if (p.type === 'match') return (
+          <mark key={i} className="rounded px-0.5"
+            style={{ background: 'rgba(251,191,36,0.4)', color: 'inherit' }}
+          >{p.value}</mark>
+        )
+        return <span key={i}>{p.value}</span>
+      })}
+    </>
+  )
+}
+
+// ─── Link preview ─────────────────────────────────────────────
+const previewCache = new Map()
+
+function extractFirstUrl(content) {
+  URL_RE.lastIndex = 0
+  const m = URL_RE.exec(content)
+  return m ? m[0] : null
+}
+
+function LinkPreview({ url }) {
+  const [status, setStatus] = useState('loading')
+  const [data, setData]     = useState(null)
+
+  useEffect(() => {
+    if (previewCache.has(url)) {
+      const c = previewCache.get(url)
+      if (c) { setData(c); setStatus('ok') } else setStatus('error')
+      return
+    }
+    setStatus('loading')
+    fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}`)
+      .then(r => r.json())
+      .then(json => {
+        if (json.status !== 'success') throw new Error()
+        const d = json.data
+        const preview = {
+          title:       d.title || null,
+          description: d.description || null,
+          image:       d.image?.url || null,
+          logo:        d.logo?.url || null,
+          domain:      (() => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } })(),
+        }
+        if (!preview.title && !preview.description && !preview.image) throw new Error()
+        previewCache.set(url, preview)
+        setData(preview); setStatus('ok')
+      })
+      .catch(() => { previewCache.set(url, null); setStatus('error') })
+  }, [url])
+
+  if (status !== 'ok' || !data) return null
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      className="mt-2 rounded-xl overflow-hidden flex flex-col hover:opacity-90 transition-opacity"
+      style={{ background: 'var(--c-surface3)', border: '1px solid var(--c-border-md)', maxWidth: 280 }}
+    >
+      {data.image && (
+        <img src={data.image} alt="" className="w-full object-cover" style={{ maxHeight: 130 }}
+          onError={e => { e.target.style.display = 'none' }} />
+      )}
+      <div className="px-3 py-2.5">
+        <div className="flex items-center gap-1.5 mb-1">
+          {data.logo && <img src={data.logo} alt="" className="w-3.5 h-3.5 rounded flex-shrink-0"
+            style={{ objectFit: 'contain' }} onError={e => { e.target.style.display = 'none' }} />}
+          <span className="text-[10px] text-white/30 truncate">{data.domain}</span>
+        </div>
+        {data.title       && <div className="text-xs font-semibold text-white/80 leading-snug line-clamp-2">{data.title}</div>}
+        {data.description && <div className="text-[11px] text-white/40 mt-0.5 leading-snug line-clamp-2">{data.description}</div>}
+      </div>
+    </a>
+  )
+}
+
+// ─── Profile popup ────────────────────────────────────────────
+function ProfilePopup({ profile, onClose }) {
+  return (
+    <>
+      <div className="fixed inset-0 z-[80]" onClick={onClose} />
+      <div
+        className="fixed z-[90] rounded-2xl shadow-2xl overflow-hidden"
+        style={{
+          background: 'var(--c-surface)',
+          border: '1px solid var(--c-border-md)',
+          width: 200,
+          top:  profile.y,
+          left: profile.x,
+        }}
+      >
+        <div className="px-4 py-4 flex flex-col items-center gap-2.5">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold overflow-hidden flex-shrink-0"
+            style={{ background: 'var(--c-surface2)', color: 'rgba(255,255,255,0.35)' }}>
+            {profile.avatar_url
+              ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              : profile.initials
+            }
+          </div>
+          <div className="text-center">
+            <div className="text-sm font-semibold text-white/88">{profile.name}</div>
+            {profile.username && <div className="text-xs text-white/35 mt-0.5">@{profile.username}</div>}
+            {profile.statusLabel && (
+              <div className="text-[11px] mt-1 flex items-center justify-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: profile.statusColor }} />
+                <span className="text-white/40">{profile.statusLabel}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
 
 function SystemMessage({ content }) {
   return (
@@ -16,31 +171,91 @@ function SystemMessage({ content }) {
   )
 }
 
-function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads }) {
+function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onReply, onEdit, onPin, pinnedMsgId, isGroup, highlighted, onRef, onScrollTo, highlight, onAvatarClick }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   if (msg.type === 'system') return <SystemMessage content={msg.content} />
 
+  const isPinned   = pinnedMsgId === msg.id
+  const isEditable = isOwn && msg.createdAt &&
+    (Date.now() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000)
+
+  const menuItems = [
+    { label: 'Reply', icon: <IconReply size={12} stroke={1.5} />, action: () => onReply?.(msg) },
+    ...(isEditable ? [{ label: 'Edit', icon: <IconPencil size={12} stroke={1.5} />, action: () => onEdit?.(msg) }] : []),
+    ...(isGroup ? [{
+      label: isPinned ? 'Unpin' : 'Pin',
+      icon: <IconPin size={12} stroke={1.5} color={isPinned ? 'rgba(251,191,36,0.7)' : 'currentColor'} />,
+      action: () => onPin?.(msg),
+    }] : []),
+  ]
+
   return (
-    <div className={`flex gap-3 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${showAvatar ? '' : 'mt-[-6px]'}`}>
+    <div
+      ref={onRef}
+      className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'} ${showAvatar ? 'mt-3' : 'mt-0.5'} group/msg rounded-xl px-1 -mx-1 transition-colors duration-700
+        ${highlighted ? 'bg-amber-400/[0.12]' : ''}`}
+      onDoubleClick={() => onReply?.(msg)}
+    >
+      {/* Avatar slot (others only) */}
       {!isOwn && (
         <div className="w-6 flex-shrink-0 mt-1.5">
           {showAvatar && (
-            <div className="w-6 h-6 rounded-full bg-white/[0.05] flex items-center justify-center text-[9px] font-medium text-white/30">
-              {msg.avatar}
-            </div>
+            <button
+              onClick={e => onAvatarClick?.(e, msg)}
+              className="w-6 h-6 rounded-full bg-white/[0.05] flex items-center justify-center text-[9px] font-medium text-white/30 hover:bg-white/[0.10] transition overflow-hidden"
+            >
+              {msg.avatar_url
+                ? <img src={msg.avatar_url} alt="" className="w-full h-full object-cover" />
+                : msg.avatar
+              }
+            </button>
           )}
         </div>
       )}
+
+      {/* Content column */}
       <div className={`max-w-[65%] flex flex-col gap-1 ${isOwn ? 'items-end' : 'items-start'}`}>
         {!isOwn && showName && (
           <span className="text-[11px] text-white/35 ml-0.5">{msg.senderName}</span>
         )}
-        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words
-          ${isOwn
-            ? 'bg-white/[0.10] text-white/90 rounded-br-sm'
-            : 'bg-white/[0.05] text-white/80 rounded-bl-sm'
-          }`}>
-          {msg.content}
+
+        {/* Reply quote */}
+        {msg.replyTo && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onScrollTo?.(msg.replyTo.id) }}
+            onDoubleClick={(e) => e.stopPropagation()}
+            className={`flex items-stretch gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.05] max-w-full text-left
+              hover:bg-white/[0.11] hover:border-white/[0.09] transition-colors
+              ${isOwn ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
+            <div className="w-0.5 rounded-full bg-white/[0.20] flex-shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[10px] text-white/40 font-medium mb-0.5">{msg.replyTo.senderName}</div>
+              <div className="text-[11px] text-white/30 truncate">{msg.replyTo.content}</div>
+            </div>
+          </button>
+        )}
+
+        {/* Bubble */}
+        <div
+          className={`rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words
+          ${isOwn ? 'text-white/90 rounded-br-sm' : 'text-white/80 rounded-bl-sm'}
+          ${isPinned ? 'ring-1 ring-amber-400/20' : ''}`}
+          style={{
+            background: isOwn ? 'var(--c-msg-own)' : 'var(--c-msg-other)',
+            padding: 'var(--c-bubble-py) var(--c-bubble-px)',
+          }}
+        >
+          <MessageText content={msg.content} highlight={highlight} />
+          {msg.edited_at && (
+            <span className="text-[10px] text-white/20 ml-1.5 select-none">(edited)</span>
+          )}
         </div>
+
+        {/* Link preview */}
+        {(() => { const u = extractFirstUrl(msg.content); return u ? <LinkPreview key={u} url={u} /> : null })()}
+
+        {/* Time + checkmarks */}
         {showTime && (
           <div className={`flex items-center gap-1.5 px-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
             <span className="text-[11px] text-white/35">{msg.time}</span>
@@ -62,6 +277,41 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads }) {
           </div>
         )}
       </div>
+
+      {/* Chevron trigger + dropdown — always after content in DOM; flex-row-reverse puts it on the left for own msgs */}
+      <div className={`relative self-start mt-1.5 flex-shrink-0 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+          onDoubleClick={(e) => e.stopPropagation()}
+          className={`w-5 h-5 flex items-center justify-center rounded-md transition
+            ${menuOpen
+              ? 'text-white/55 bg-white/[0.07]'
+              : 'text-white/20 hover:text-white/50 hover:bg-white/[0.10]'}`}
+        >
+          <IconChevronDown size={11} stroke={2} />
+        </button>
+
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-[49]" onClick={() => setMenuOpen(false)} />
+            <div
+              className={`absolute top-full mt-1 z-50 border rounded-xl overflow-hidden shadow-xl min-w-[130px] ${isOwn ? 'right-0' : 'left-0'}`}
+              style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}
+            >
+              {menuItems.map(item => (
+                <button
+                  key={item.label}
+                  onClick={(e) => { e.stopPropagation(); item.action(); setMenuOpen(false) }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-white/45 hover:text-white/80 hover:bg-white/[0.09] transition text-left"
+                >
+                  <span className="flex-shrink-0">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -69,12 +319,13 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads }) {
 function sameGroup(a, b) {
   if (!a || !b) return false
   if (a.type === 'system' || b.type === 'system') return false
+  if (b.replyTo) return false
   return a.isOwn === b.isOwn && a.senderName === b.senderName && a.time === b.time
 }
 
 // ─── Message reads panel ──────────────────────────────────────
 function MessageReadsPanel({ msgId, refreshKey, onClose }) {
-  const [reads, setReads]   = useState([])
+  const [reads, setReads]     = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -91,7 +342,7 @@ function MessageReadsPanel({ msgId, refreshKey, onClose }) {
   return (
     <>
       <div className="fixed inset-0 z-30" onClick={onClose} />
-      <div className="absolute top-0 right-0 bottom-0 w-60 z-40 bg-[#0f0f17] border-l border-white/[0.04] flex flex-col">
+      <div className="absolute top-0 right-0 bottom-0 w-60 z-40 border-l border-white/[0.04] flex flex-col" style={{ background: 'var(--c-surface)' }}>
 
         <div className="px-5 py-4 border-b border-white/[0.04] flex items-center justify-between">
           <span className="text-xs font-medium text-white/50 uppercase tracking-widest">Seen by</span>
@@ -161,14 +412,14 @@ const ROLE_ORDER = { admin: 0, dispatcher: 1, driver: 2 }
 const ROLE_COLOR = { admin: 'text-amber-400/60', dispatcher: 'text-sky-400/50', driver: 'text-white/25' }
 const ROLES      = ['admin', 'dispatcher', 'driver']
 
-function MembersPanel({ members, isAdmin, currentUserId, onAddMember, onClose, onChangeRole, onRemoveMember }) {
+function MembersPanel({ members, isAdmin, currentUserId, userStatuses, onAddMember, onClose, onChangeRole, onRemoveMember }) {
   const [openRoleMenu, setOpenRoleMenu] = useState(null)
   const sorted = [...members].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9))
 
   return (
     <>
       <div className="fixed inset-0 z-30" onClick={() => { onClose(); setOpenRoleMenu(null) }} />
-      <div className="absolute top-0 right-0 bottom-0 w-64 z-40 bg-[#0f0f17] border-l border-white/[0.04] flex flex-col">
+      <div className="absolute top-0 right-0 bottom-0 w-64 z-40 border-l border-white/[0.04] flex flex-col" style={{ background: 'var(--c-surface)' }}>
 
         <div className="px-5 py-4 border-b border-white/[0.04] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -176,7 +427,7 @@ function MembersPanel({ members, isAdmin, currentUserId, onAddMember, onClose, o
             {isAdmin && (
               <button
                 onClick={onAddMember}
-                className="w-5 h-5 flex items-center justify-center rounded-md text-white/20 hover:text-white/60 hover:bg-white/[0.07] transition"
+                className="w-5 h-5 flex items-center justify-center rounded-md text-white/20 hover:text-white/60 hover:bg-white/[0.11] transition"
                 title="Add member"
               >
                 <IconUserPlus size={11} />
@@ -190,12 +441,20 @@ function MembersPanel({ members, isAdmin, currentUserId, onAddMember, onClose, o
 
         <div className="flex-1 overflow-y-auto py-2">
           {sorted.map(m => {
-            const initials = `${m.first_name?.[0] ?? ''}${m.last_name?.[0] ?? ''}`.toUpperCase()
-            const isMe     = m.id === currentUserId
+            const initials   = `${m.first_name?.[0] ?? ''}${m.last_name?.[0] ?? ''}`.toUpperCase()
+            const isMe       = m.id === currentUserId
+            const status     = userStatuses?.[m.id] ?? m.status ?? 'available'
+            const statusColor = STATUSES.find(s => s.value === status)?.color ?? '#6b7280'
             return (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition group/row">
-                <div className="w-8 h-8 rounded-full bg-white/[0.05] flex items-center justify-center text-[11px] font-medium text-white/30 flex-shrink-0">
-                  {initials}
+              <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.09] transition group/row">
+                <div className="relative flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-white/[0.05] flex items-center justify-center text-[11px] font-medium text-white/30 overflow-hidden">
+                    {m.avatar_url
+                      ? <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
+                      : initials
+                    }
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2" style={{ background: statusColor, borderColor: 'var(--c-surface)' }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-white/95 truncate">
@@ -216,7 +475,7 @@ function MembersPanel({ members, isAdmin, currentUserId, onAddMember, onClose, o
                     {openRoleMenu === m.id && (
                       <>
                         <div className="fixed inset-0 z-[45]" onClick={(e) => { e.stopPropagation(); setOpenRoleMenu(null) }} />
-                        <div className="absolute left-0 top-full mt-1 z-[50] bg-[#1a1a28] border border-white/[0.08] rounded-xl overflow-hidden shadow-xl min-w-[110px]">
+                        <div className="absolute left-0 top-full mt-1 z-[50] border rounded-xl overflow-hidden shadow-xl min-w-[110px]" style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}>
                           {ROLES.map(r => (
                             <button
                               key={r}
@@ -224,7 +483,7 @@ function MembersPanel({ members, isAdmin, currentUserId, onAddMember, onClose, o
                               className={`w-full text-left px-4 py-2 text-xs capitalize transition
                                 ${r === m.role
                                   ? 'text-white/70 bg-white/[0.06]'
-                                  : 'text-white/35 hover:text-white/65 hover:bg-white/[0.04]'}`}
+                                  : 'text-white/35 hover:text-white/65 hover:bg-white/[0.09]'}`}
                             >
                               {r}
                             </button>
@@ -252,7 +511,7 @@ function MembersPanel({ members, isAdmin, currentUserId, onAddMember, onClose, o
   )
 }
 
-function GroupHeader({ group, memberCount, onToggleMembers, onSettings }) {
+function GroupHeader({ group, memberCount, onToggleMembers, onSettings, onSearch }) {
   const initials = group.name.slice(0, 2).toUpperCase()
 
   const subtitle = [
@@ -276,34 +535,60 @@ function GroupHeader({ group, memberCount, onToggleMembers, onSettings }) {
           </button>
         </div>
       </div>
-      <button
-        onClick={onSettings}
-        className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition"
-        title="Options"
-      >
-        <IconMoreVertical size={17} />
-      </button>
+      <div className="flex items-center gap-1">
+        <button onClick={onSearch}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-white/55 hover:text-white/85 hover:bg-white/[0.10] transition"
+          title="Search in conversation">
+          <IconSearch size={16} stroke={2.2} />
+        </button>
+        <button onClick={onSettings}
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-white/55 hover:text-white/85 hover:bg-white/[0.10] transition"
+          title="Options">
+          <IconMoreVertical size={17} stroke={2.2} />
+        </button>
+      </div>
     </div>
   )
 }
 
-function DmHeader({ otherUser }) {
-  const initials = `${otherUser.first_name?.[0] ?? ''}${otherUser.last_name?.[0] ?? ''}`.toUpperCase()
+function DmHeader({ otherUser, userStatuses, onSearch, onAvatarClick }) {
+  const initials  = `${otherUser.first_name?.[0] ?? ''}${otherUser.last_name?.[0] ?? ''}`.toUpperCase()
+  const status    = userStatuses?.[otherUser.user_id ?? otherUser.id] ?? otherUser.status ?? 'available'
+  const statusCfg = STATUSES.find(s => s.value === status) ?? STATUSES[0]
 
   return (
-    <div className="px-7 py-2.5 border-b border-white/[0.04] flex items-center gap-3">
-      <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center text-[13px] font-medium text-white/30 flex-shrink-0">
-        {initials}
-      </div>
-      <div>
+    <div className="px-7 py-2.5 border-b border-white/[0.04] flex items-center gap-3" style={{ background: 'var(--c-bg)' }}>
+      <button
+        onClick={onAvatarClick}
+        className="relative flex-shrink-0 rounded-full hover:opacity-80 transition"
+        title="View profile"
+      >
+        <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center text-[13px] font-medium text-white/30 overflow-hidden">
+          {otherUser.avatar_url
+            ? <img src={otherUser.avatar_url} alt="" className="w-full h-full object-cover" />
+            : initials
+          }
+        </div>
+        <span
+          className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2"
+          style={{ background: statusCfg.color, borderColor: 'var(--c-bg)' }}
+        />
+      </button>
+      <div className="flex-1 min-w-0">
         <div className="text-xl font-bold text-white/95 tracking-tight leading-none">
           {otherUser.first_name} {otherUser.last_name}
         </div>
-        <div className="text-xs text-white/40 mt-1">
-          @{otherUser.username}
-          {otherUser.role && <span className="ml-1.5 capitalize">· {otherUser.role}</span>}
+        <div className="text-xs mt-1 flex items-center gap-1.5">
+          <span className="text-white/40">@{otherUser.username}</span>
+          <span className="text-white/20">·</span>
+          <span style={{ color: statusCfg.color + 'bb' }} className="text-[11px]">{statusCfg.label}</span>
         </div>
       </div>
+      <button onClick={onSearch}
+        className="w-8 h-8 flex items-center justify-center rounded-lg text-white/30 hover:text-white/70 hover:bg-white/[0.10] transition"
+        title="Search in conversation">
+        <IconSearch size={15} stroke={1.5} />
+      </button>
     </div>
   )
 }
@@ -316,6 +601,13 @@ function formatGroupMessages(messages, currentUserId) {
     isOwn:      m.sender_id === currentUserId,
     senderName: `${m.first_name} ${m.last_name}`,
     avatar:     `${m.first_name?.[0] ?? ''}${m.last_name?.[0] ?? ''}`.toUpperCase(),
+    edited_at:  m.edited_at,
+    createdAt:  m.created_at,
+    replyTo:    m.reply_to_id ? {
+      id:         m.reply_to_id,
+      content:    m.reply_content,
+      senderName: `${m.reply_first_name ?? ''} ${m.reply_last_name ?? ''}`.trim(),
+    } : null,
   }))
 }
 
@@ -327,30 +619,50 @@ function formatDmMessages(messages, currentUserId) {
     isOwn:      m.sender_id === currentUserId,
     senderName: `${m.first_name} ${m.last_name}`,
     avatar:     `${m.first_name?.[0] ?? ''}${m.last_name?.[0] ?? ''}`.toUpperCase(),
+    createdAt:  m.created_at,
   }))
 }
 
-export default function ChatWindow({ user, activeConversation, onGroupUpdated, onGroupRemoved }) {
-  const [input, setInput]                   = useState('')
-  const [messages, setMessages]             = useState([])
-  const [sending, setSending]               = useState(false)
-  const [showAddMember, setShowAddMember]   = useState(false)
-  const [showMembers, setShowMembers]       = useState(false)
-  const [showSettings, setShowSettings]     = useState(false)
-  const [members, setMembers]               = useState([])
-  const [readsPanel, setReadsPanel]         = useState(null)
+export default function ChatWindow({ user, activeConversation, userStatuses = {}, onGroupUpdated, onGroupRemoved }) {
+  const { appearance } = useSettings()
+  const isLightTheme  = THEMES[appearance?.theme]?.light ?? false
+  const chatPattern   = PATTERNS[appearance?.background] ?? PATTERNS.none
+  const chatBgImage   = isLightTheme ? chatPattern.light : chatPattern.dark
+  const chatBgSize    = chatPattern.size
+  const densityClass  = appearance?.density === 'compact' ? 'space-y-0.5' : 'space-y-1'
+  const [input, setInput]                     = useState('')
+  const [messages, setMessages]               = useState([])
+  const [sending, setSending]                 = useState(false)
+  const [showAddMember, setShowAddMember]     = useState(false)
+  const [showMembers, setShowMembers]         = useState(false)
+  const [showSettings, setShowSettings]       = useState(false)
+  const [members, setMembers]                 = useState([])
+  const [readsPanel, setReadsPanel]           = useState(null)
   const [readsRefreshKey, setReadsRefreshKey] = useState(0)
-  const [typers, setTypers]                 = useState([])   // [{ user_id, username }]
-  const bottomRef                           = useRef(null)
-  const currentRoomRef                      = useRef(null)
-  const typingTimers                        = useRef({})
+  const [typers, setTypers]                   = useState([])
+  const [replyTo, setReplyTo]                 = useState(null)   // { id, content, senderName }
+  const [editingMsg, setEditingMsg]           = useState(null)   // { id, content }
+  const [pinnedMsg, setPinnedMsg]             = useState(null)   // { id, content, first_name, last_name }
+  const [highlightedMsgId, setHighlightedMsgId] = useState(null)
+  const [searchOpen, setSearchOpen]           = useState(false)
+  const [searchQuery, setSearchQuery]         = useState('')
+  const [searchIdx, setSearchIdx]             = useState(0)
+  const [profileUser, setProfileUser]         = useState(null)
+  const searchInputRef                        = useRef(null)
+  const bottomRef                             = useRef(null)
+  const currentRoomRef                        = useRef(null)
+  const typingTimers                          = useRef({})
+  const typingTimeoutRef                      = useRef(null)
+  const textareaRef                           = useRef(null)
+  const msgRefs                               = useRef({})
+  const highlightTimer                        = useRef(null)
 
   const group     = activeConversation?.type === 'group' ? activeConversation.group : null
   const dmConvId  = activeConversation?.type === 'dm'    ? activeConversation.convId : null
   const otherUser = activeConversation?.type === 'dm'    ? activeConversation.otherUser : null
   const isAdmin   = group?.role === 'admin'
 
-  // ─── Socket: messages + member added ─────────────────────────
+  // ─── Socket: messages + member events ────────────────────────
   useEffect(() => {
     const socket = getSocket()
     if (!socket) return
@@ -359,18 +671,24 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
       const isOwn = message.sender_id === user.id
       if (!isOwn) {
         playReceive()
-        // Mark as read if it's a group message in the active conversation
         if (type === 'group' && message.group_id) {
           api.markGroupRead(message.group_id).catch(() => {})
         }
       }
       setMessages(prev => [...prev, {
-        id:         message.id,
-        content:    message.content,
-        time:       new Date(message.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
+        id:          message.id,
+        content:     message.content,
+        time:        new Date(message.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
         isOwn,
-        senderName: `${message.first_name} ${message.last_name}`,
-        avatar:     `${message.first_name?.[0] ?? ''}${message.last_name?.[0] ?? ''}`.toUpperCase(),
+        senderName:  `${message.first_name} ${message.last_name}`,
+        avatar:      `${message.first_name?.[0] ?? ''}${message.last_name?.[0] ?? ''}`.toUpperCase(),
+        edited_at:   null,
+        createdAt:   message.created_at,
+        replyTo:     message.reply_to_id ? {
+          id:         message.reply_to_id,
+          content:    message.reply_content,
+          senderName: `${message.reply_first_name ?? ''} ${message.reply_last_name ?? ''}`.trim(),
+        } : null,
       }])
     }
 
@@ -383,6 +701,18 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
       }])
     }
 
+    const handleMessageEdited = ({ id, content, edited_at }) => {
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, content, edited_at } : m))
+    }
+
+    const handleMessagePinned = ({ pinned_message }) => {
+      setPinnedMsg(pinned_message)
+    }
+
+    const handleMessageUnpinned = () => {
+      setPinnedMsg(null)
+    }
+
     const handleTypingStart = ({ user_id, username }) => {
       setTypers(prev => prev.find(t => t.user_id === user_id) ? prev : [...prev, { user_id, username }])
       clearTimeout(typingTimers.current[user_id])
@@ -390,20 +720,27 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
         setTypers(prev => prev.filter(t => t.user_id !== user_id))
       }, 3000)
     }
+
     const handleTypingStop = ({ user_id }) => {
       clearTimeout(typingTimers.current[user_id])
       setTypers(prev => prev.filter(t => t.user_id !== user_id))
     }
 
-    socket.on('message:new',        handleNewMessage)
+    socket.on('message:new',       handleNewMessage)
+    socket.on('message:edited',    handleMessageEdited)
+    socket.on('message:pinned',    handleMessagePinned)
+    socket.on('message:unpinned',  handleMessageUnpinned)
     socket.on('group:member_added', handleMemberAdded)
-    socket.on('typing:start',       handleTypingStart)
-    socket.on('typing:stop',        handleTypingStop)
+    socket.on('typing:start',      handleTypingStart)
+    socket.on('typing:stop',       handleTypingStop)
     return () => {
-      socket.off('message:new',        handleNewMessage)
+      socket.off('message:new',       handleNewMessage)
+      socket.off('message:edited',    handleMessageEdited)
+      socket.off('message:pinned',    handleMessagePinned)
+      socket.off('message:unpinned',  handleMessageUnpinned)
       socket.off('group:member_added', handleMemberAdded)
-      socket.off('typing:start',       handleTypingStart)
-      socket.off('typing:stop',        handleTypingStop)
+      socket.off('typing:start',      handleTypingStart)
+      socket.off('typing:stop',       handleTypingStop)
     }
   }, [user.id])
 
@@ -412,9 +749,9 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
     const socket = getSocket()
     if (!socket || !group) return
 
-    const handleGroupUpdated = (updated)          => onGroupUpdated?.(updated)
-    const handleGroupDeleted = ({ group_id })     => { if (group_id === group.id) onGroupRemoved?.(group_id) }
-    const handleReadUpdate   = ()                 => setReadsRefreshKey(k => k + 1)
+    const handleGroupUpdated  = (updated)        => onGroupUpdated?.(updated)
+    const handleGroupDeleted  = ({ group_id })   => { if (group_id === group.id) onGroupRemoved?.(group_id) }
+    const handleReadUpdate    = ()               => setReadsRefreshKey(k => k + 1)
 
     const handleMemberRemoved = ({ user_id, name }) => {
       if (user_id === user.id) {
@@ -459,12 +796,20 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
     }
 
     setTypers([])
+    setReplyTo(null)
+    setEditingMsg(null)
+    setInput('')
+    setHighlightedMsgId(null)
+    clearTimeout(highlightTimer.current)
+    msgRefs.current = {}
+
     if (!activeConversation) {
       setMessages([])
       setMembers([])
       setShowMembers(false)
       setShowSettings(false)
       setReadsPanel(null)
+      setPinnedMsg(null)
       return
     }
 
@@ -475,8 +820,11 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
       }
       api.markGroupRead(group.id).catch(() => {})
       api.getGroupMessages(group.id)
-        .then(({ messages }) => setMessages(formatGroupMessages(messages, user.id)))
-        .catch(() => setMessages([]))
+        .then(({ messages, pinned_message }) => {
+          setMessages(formatGroupMessages(messages, user.id))
+          setPinnedMsg(pinned_message || null)
+        })
+        .catch(() => { setMessages([]); setPinnedMsg(null) })
       api.getMembers(group.id)
         .then(({ members }) => setMembers(members))
         .catch(() => setMembers([]))
@@ -488,6 +836,7 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
         socket.emit('dm:join', dmConvId)
         currentRoomRef.current = `dm:${dmConvId}`
       }
+      setPinnedMsg(null)
       api.getDmMessages(dmConvId)
         .then(({ messages }) => setMessages(formatDmMessages(messages, user.id)))
         .catch(() => setMessages([]))
@@ -520,19 +869,146 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
     } catch {}
   }
 
-  const handleSend = () => {
-    if (!input.trim() || sending) return
-    const content = input.trim()
-    const socket  = getSocket()
+  const scrollToMessage = (id) => {
+    const el = msgRefs.current[id]
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    clearTimeout(highlightTimer.current)
+    setHighlightedMsgId(id)
+    highlightTimer.current = setTimeout(() => setHighlightedMsgId(null), 1600)
+  }
+
+  // ─── Search ───────────────────────────────────────────────────
+  const searchResults = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 2) return []
+    const q = searchQuery.toLowerCase()
+    return messages
+      .filter(m => m.type !== 'system' && m.content?.toLowerCase().includes(q))
+      .map(m => m.id)
+  }, [searchQuery, messages])
+
+  // Scroll to match when idx or results change
+  useEffect(() => {
+    if (!searchResults.length) return
+    const id = searchResults[searchIdx] ?? searchResults[0]
+    const el = msgRefs.current[id]
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [searchIdx, searchResults])
+
+  // Focus input when search opens
+  useEffect(() => {
+    if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50)
+    else { setSearchQuery(''); setSearchIdx(0) }
+  }, [searchOpen])
+
+  // Reset search when conversation changes
+  useEffect(() => { setSearchOpen(false); setSearchQuery(''); setSearchIdx(0) }, [activeConversation])
+
+  // Ctrl+F shortcut
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && activeConversation) {
+        e.preventDefault()
+        setSearchOpen(v => !v)
+      }
+      if (e.key === 'Escape' && searchOpen) setSearchOpen(false)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [activeConversation, searchOpen])
+
+  // ─── Profile popup ────────────────────────────────────────────
+  const handleAvatarClick = useCallback((e, msg) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setProfileUser({
+      name:        msg.senderName,
+      initials:    msg.avatar,
+      avatar_url:  msg.avatar_url || null,
+      username:    null,
+      statusLabel: null,
+      statusColor: null,
+      x: Math.min(rect.right + 8, window.innerWidth - 220),
+      y: Math.min(rect.top,       window.innerHeight - 160),
+    })
+  }, [])
+
+  const handleDmAvatarClick = useCallback((e) => {
+    if (!otherUser) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const statusCfg = STATUSES.find(s => s.value === (userStatuses?.[otherUser.user_id ?? otherUser.id] ?? otherUser.status ?? 'available')) ?? STATUSES[0]
+    setProfileUser({
+      name:        `${otherUser.first_name} ${otherUser.last_name}`,
+      initials:    `${otherUser.first_name?.[0] ?? ''}${otherUser.last_name?.[0] ?? ''}`.toUpperCase(),
+      avatar_url:  otherUser.avatar_url || null,
+      username:    otherUser.username,
+      statusLabel: statusCfg.label,
+      statusColor: statusCfg.color,
+      x: Math.min(rect.right + 8, window.innerWidth - 220),
+      y: Math.min(rect.top,       window.innerHeight - 180),
+    })
+  }, [otherUser, userStatuses])
+
+  const handleReply = (msg) => {
+    setReplyTo({ id: msg.id, content: msg.content, senderName: msg.senderName })
+    setEditingMsg(null)
     setInput('')
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
+  const handleEdit = (msg) => {
+    setEditingMsg({ id: msg.id })
+    setReplyTo(null)
+    setInput(msg.content)
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
+  const handlePin = async (msg) => {
+    if (!group) return
+    try {
+      if (pinnedMsg?.id === msg.id) {
+        await api.unpinMessage(group.id)
+      } else {
+        await api.pinMessage(group.id, msg.id)
+      }
+    } catch {}
+  }
+
+  const cancelCompose = () => {
+    setReplyTo(null)
+    setEditingMsg(null)
+    setInput('')
+  }
+
+  const handleSend = () => {
+    // Edit mode
+    if (editingMsg) {
+      const content = input.trim()
+      if (!content) return
+      api.editGroupMessage(editingMsg.id, content)
+        .then(() => {
+          setEditingMsg(null)
+          setInput('')
+        })
+        .catch(() => {})
+      return
+    }
+
+    if (!input.trim() || sending) return
+    const content        = input.trim()
+    const currentReplyTo = replyTo
+    const socket         = getSocket()
+    setInput('')
+    setReplyTo(null)
     setSending(true)
 
     if (socket?.connected) {
       const event   = group ? 'group:message' : 'dm:message'
-      const payload = group ? { group_id: group.id, content } : { conv_id: dmConvId, content }
+      const payload = group
+        ? { group_id: group.id, content, reply_to_id: currentReplyTo?.id }
+        : { conv_id: dmConvId, content }
 
       socket.emit(event, payload, (ack) => {
-        if (ack?.error) setInput(content)
+        if (ack?.error) { setInput(content); setReplyTo(currentReplyTo) }
         else playSend()
         setSending(false)
       })
@@ -544,24 +1020,26 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
       req.then(({ message: msg }) => {
         playSend()
         setMessages(prev => [...prev, {
-          id:         msg.id,
-          content:    msg.content,
-          time:       new Date(msg.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
-          isOwn:      true,
+          id:        msg.id,
+          content:   msg.content,
+          time:      new Date(msg.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
+          isOwn:     true,
           senderName: `${user.first_name} ${user.last_name}`,
-          avatar:     `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase(),
+          avatar:    `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase(),
+          edited_at: null,
+          createdAt: msg.created_at,
+          replyTo:   null,
         }])
-      }).catch(() => setInput(content))
+      }).catch(() => { setInput(content); setReplyTo(currentReplyTo) })
        .finally(() => setSending(false))
     }
   }
 
-  const typingTimeoutRef = useRef(null)
   const handleInputChange = (e) => {
     setInput(e.target.value)
     const socket = getSocket()
     const room   = group ? `group:${group.id}` : dmConvId ? `dm:${dmConvId}` : null
-    if (!socket || !room) return
+    if (!socket || !room || editingMsg) return
     socket.emit('typing:start', { room })
     clearTimeout(typingTimeoutRef.current)
     typingTimeoutRef.current = setTimeout(() => {
@@ -570,12 +1048,13 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
   }
 
   const handleKey = (e) => {
+    if (e.key === 'Escape') { cancelCompose(); return }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
   if (!activeConversation) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#0a0a0f]">
+      <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--c-bg)' }}>
         <div className="text-center">
           <span className="text-white/10 inline-block mb-3"><IconMessage size={28} stroke={1} /></span>
           <p className="text-xs text-white/30">Select a group or conversation</p>
@@ -585,7 +1064,7 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0a0a0f] min-w-0 relative">
+    <div className="flex-1 flex flex-col min-w-0 relative" style={{ background: 'var(--c-bg)' }}>
 
       {group
         ? <GroupHeader
@@ -593,12 +1072,89 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
             memberCount={members.length || null}
             onToggleMembers={() => setShowMembers(v => !v)}
             onSettings={() => setShowSettings(true)}
+            onSearch={() => setSearchOpen(v => !v)}
           />
-        : <DmHeader otherUser={otherUser} />
+        : <DmHeader
+            otherUser={otherUser}
+            userStatuses={userStatuses}
+            onSearch={() => setSearchOpen(v => !v)}
+            onAvatarClick={handleDmAvatarClick}
+          />
       }
 
+      {/* Search bar */}
+      {searchOpen && (
+        <div className="px-4 py-2 flex items-center gap-2 border-b border-white/[0.04] flex-shrink-0" style={{ background: 'var(--c-bg)' }}>
+          <IconSearch size={12} color="rgba(255,255,255,0.25)" />
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setSearchIdx(0) }}
+            onKeyDown={e => {
+              if (e.key === 'Escape') setSearchOpen(false)
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (!searchResults.length) return
+                setSearchIdx(i => e.shiftKey
+                  ? (i - 1 + searchResults.length) % searchResults.length
+                  : (i + 1) % searchResults.length
+                )
+              }
+            }}
+            placeholder="Search in conversation..."
+            className="flex-1 bg-transparent text-xs text-white/70 placeholder-white/20 outline-none"
+          />
+          {searchQuery.length >= 2 && (
+            <span className="text-[10px] text-white/30 whitespace-nowrap flex-shrink-0">
+              {searchResults.length > 0 ? `${searchIdx + 1} of ${searchResults.length}` : 'No results'}
+            </span>
+          )}
+          {searchResults.length > 1 && (
+            <>
+              <button onClick={() => setSearchIdx(i => (i - 1 + searchResults.length) % searchResults.length)}
+                className="text-white/30 hover:text-white/60 transition p-0.5">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+              </button>
+              <button onClick={() => setSearchIdx(i => (i + 1) % searchResults.length)}
+                className="text-white/30 hover:text-white/60 transition p-0.5">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            </>
+          )}
+          <button onClick={() => setSearchOpen(false)} className="text-white/20 hover:text-white/50 transition">
+            <IconX size={11} />
+          </button>
+        </div>
+      )}
+
+      {/* Pinned message banner */}
+      {pinnedMsg && group && (
+        <div className="px-6 py-2 border-b border-white/[0.04] bg-white/[0.01] flex items-center gap-2.5">
+          <IconPin size={11} stroke={1.4} color="rgba(251,191,36,0.45)" />
+          <button
+            onClick={() => scrollToMessage(pinnedMsg.id)}
+            className="flex-1 min-w-0 text-left hover:opacity-75 transition-opacity"
+          >
+            <div className="text-[10px] text-white/25 mb-0.5">
+              Pinned · {pinnedMsg.first_name} {pinnedMsg.last_name}
+            </div>
+            <div className="text-[11px] text-white/50 truncate">{pinnedMsg.content}</div>
+          </button>
+          <button
+            onClick={() => api.unpinMessage(group.id).catch(() => {})}
+            className="text-white/15 hover:text-white/40 transition flex-shrink-0 ml-1"
+            title="Unpin"
+          >
+            <IconX size={11} />
+          </button>
+        </div>
+      )}
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-7 py-6 space-y-4">
+      <div
+        className={`flex-1 overflow-y-auto px-7 py-6 ${densityClass}`}
+        style={{ backgroundImage: chatBgImage, backgroundSize: chatBgSize, fontSize: 'var(--c-font-size)' }}
+      >
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <p className="text-xs text-white/30">No messages yet. Say hello!</p>
@@ -617,10 +1173,20 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
               showAvatar={!grouped}
               showName={!grouped}
               showTime={lastInGroup}
+              isGroup={!!group}
+              pinnedMsgId={pinnedMsg?.id}
+              highlighted={highlightedMsgId === msg.id}
+              highlight={searchQuery.length >= 2 ? searchQuery : ''}
+              onRef={el => { if (el) msgRefs.current[msg.id] = el; else delete msgRefs.current[msg.id] }}
+              onScrollTo={scrollToMessage}
+              onAvatarClick={handleAvatarClick}
               onOpenReads={group && msg.isOwn && msg.id && typeof msg.id === 'number'
                 ? (id) => setReadsPanel(id)
                 : undefined
               }
+              onReply={handleReply}
+              onEdit={handleEdit}
+              onPin={handlePin}
             />
           )
         })}
@@ -643,23 +1209,55 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
         </div>
       )}
 
+      {/* Reply / edit strip */}
+      {(replyTo || editingMsg) && (
+        <div className="px-5 pt-2">
+          <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.05] rounded-xl px-3.5 py-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {replyTo ? (
+                <>
+                  <IconReply size={12} stroke={1.5} color="rgba(255,255,255,0.25)" />
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-white/35">{replyTo.senderName}</div>
+                    <div className="text-[11px] text-white/25 truncate">{replyTo.content}</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <IconPencil size={12} stroke={1.5} color="rgba(255,255,255,0.25)" />
+                  <span className="text-[11px] text-white/30">Editing message</span>
+                </>
+              )}
+            </div>
+            <button
+              onClick={cancelCompose}
+              className="text-white/20 hover:text-white/50 transition flex-shrink-0 ml-3"
+              title="Cancel"
+            >
+              <IconX size={11} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="px-5 pb-5 pt-2">
         <div className="flex items-end gap-2 bg-white/[0.03] border border-white/[0.06] rounded-2xl px-4 py-2.5 focus-within:border-white/10 transition-all">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKey}
-            placeholder="Message..."
+            placeholder={editingMsg ? 'Edit message...' : 'Message...'}
             rows={1}
             className="flex-1 bg-transparent text-sm text-white/90 placeholder-white/20 focus:outline-none resize-none py-1 min-h-[22px] max-h-[100px]"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending}
-            className="p-1 rounded-lg transition flex-shrink-0 mb-0.5 text-white/15 hover:text-white/50 disabled:opacity-30"
+            className="p-1 rounded-lg transition flex-shrink-0 mb-0.5 text-white/45 hover:text-white/80 disabled:opacity-25"
           >
-            <IconSend size={14} />
+            <IconSend size={15} />
           </button>
         </div>
       </div>
@@ -669,6 +1267,7 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
           members={members}
           isAdmin={isAdmin}
           currentUserId={user.id}
+          userStatuses={userStatuses}
           onAddMember={() => { setShowMembers(false); setShowAddMember(true) }}
           onClose={() => setShowMembers(false)}
           onChangeRole={handleChangeRole}
@@ -700,6 +1299,10 @@ export default function ChatWindow({ user, activeConversation, onGroupUpdated, o
           refreshKey={readsRefreshKey}
           onClose={() => setReadsPanel(null)}
         />
+      )}
+
+      {profileUser && (
+        <ProfilePopup profile={profileUser} onClose={() => setProfileUser(null)} />
       )}
     </div>
   )

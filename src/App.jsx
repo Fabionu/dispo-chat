@@ -4,20 +4,56 @@ import ChatWindow from './components/ChatWindow.jsx'
 import AuthPage from './components/AuthPage.jsx'
 import { api } from './services/api.js'
 import { connectSocket, disconnectSocket, getSocket } from './services/socket.js'
+import { SettingsProvider } from './contexts/SettingsContext.jsx'
+
+function updateFavicon(count) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 32; canvas.height = 32
+  const ctx = canvas.getContext('2d')
+
+  // Base icon — chat bubble
+  ctx.fillStyle = '#818cf8'
+  ctx.beginPath(); ctx.roundRect(0, 0, 32, 32, 7); ctx.fill()
+  ctx.fillStyle = 'rgba(255,255,255,0.85)'
+  ctx.beginPath(); ctx.roundRect(5, 5, 22, 16, 4); ctx.fill()
+  ctx.fillStyle = '#818cf8'
+  ctx.beginPath(); ctx.moveTo(8, 21); ctx.lineTo(13, 27); ctx.lineTo(18, 21); ctx.closePath(); ctx.fill()
+
+  if (count > 0) {
+    const label = count > 99 ? '99+' : String(count)
+    const bx = label.length > 1 ? 22 : 23, by = 9, br = label.length > 2 ? 9 : 7
+    ctx.fillStyle = '#ef4444'
+    ctx.beginPath(); ctx.arc(bx, by, br, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold ${label.length > 2 ? 7 : 9}px sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(label, bx, by)
+  }
+
+  let link = document.querySelector("link[rel~='icon']")
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link) }
+  link.href = canvas.toDataURL()
+}
 
 export default function App() {
   const [user, setUser]                             = useState(null)
   const [groups, setGroups]                         = useState([])
   const [activeConversation, setActiveConversation] = useState(null)
   const [unreads, setUnreads]                       = useState({})
-  // { 'group:1': 3, 'dm:5': 1, ... }
   const [loading, setLoading]                       = useState(true)
+  const [userStatuses, setUserStatuses]             = useState({}) // { [userId]: status }
   const activeConvRef                               = useRef(null)
 
-  // Keep ref in sync so socket handler always has latest value
   useEffect(() => { activeConvRef.current = activeConversation }, [activeConversation])
 
-  // ─── Socket: sidebar live updates + unread tracking ────────────
+  // ─── Favicon badge + document title ──────────────────────────
+  useEffect(() => {
+    const total = Object.values(unreads).reduce((s, n) => s + n, 0)
+    updateFavicon(total)
+    document.title = total > 0 ? `(${total}) Dispo Chat` : 'Dispo Chat'
+  }, [unreads])
+
+  // ─── Socket: sidebar live updates + unread + status ────────────
   useEffect(() => {
     if (!user) return
     const socket = getSocket()
@@ -27,7 +63,6 @@ export default function App() {
       const conv = activeConvRef.current
 
       if (type === 'group') {
-        // Update last_message preview in sidebar
         setGroups(prev => {
           const updated = prev.map(g =>
             g.id === message.group_id
@@ -40,8 +75,6 @@ export default function App() {
             return new Date(b.last_message_at) - new Date(a.last_message_at)
           })
         })
-
-        // Increment unread if not active conversation & not own message
         const isActive = conv?.type === 'group' && conv.group.id === message.group_id
         if (!isActive && message.sender_id !== user.id) {
           setUnreads(prev => ({
@@ -62,16 +95,22 @@ export default function App() {
       }
     }
 
+    const handleStatusChanged = ({ user_id, status }) => {
+      setUserStatuses(prev => ({ ...prev, [user_id]: status }))
+    }
+
     const handleGroupUpdatedSocket = (updatedGroup) => handleGroupUpdated(updatedGroup)
     const handleGroupDeletedSocket = ({ group_id }) => handleGroupRemoved(group_id)
 
-    socket.on('message:new',   handleMessage)
-    socket.on('group:updated', handleGroupUpdatedSocket)
-    socket.on('group:deleted', handleGroupDeletedSocket)
+    socket.on('message:new',        handleMessage)
+    socket.on('user:status_changed', handleStatusChanged)
+    socket.on('group:updated',       handleGroupUpdatedSocket)
+    socket.on('group:deleted',       handleGroupDeletedSocket)
     return () => {
-      socket.off('message:new',   handleMessage)
-      socket.off('group:updated', handleGroupUpdatedSocket)
-      socket.off('group:deleted', handleGroupDeletedSocket)
+      socket.off('message:new',        handleMessage)
+      socket.off('user:status_changed', handleStatusChanged)
+      socket.off('group:updated',       handleGroupUpdatedSocket)
+      socket.off('group:deleted',       handleGroupDeletedSocket)
     }
   }, [user])
 
@@ -118,16 +157,13 @@ export default function App() {
     setGroups([])
     setActiveConversation(null)
     setUnreads({})
+    setUserStatuses({})
   }
 
-  const handleGroupCreated = (group) => {
-    setGroups(prev => [group, ...prev])
-  }
+  const handleGroupCreated = (group) => setGroups(prev => [group, ...prev])
 
   const handleGroupUpdated = (updatedGroup) => {
-    setGroups(prev => prev.map(g =>
-      g.id === updatedGroup.id ? { ...g, ...updatedGroup } : g
-    ))
+    setGroups(prev => prev.map(g => g.id === updatedGroup.id ? { ...g, ...updatedGroup } : g))
     setActiveConversation(prev =>
       prev?.type === 'group' && prev.group.id === updatedGroup.id
         ? { ...prev, group: { ...prev.group, ...updatedGroup } }
@@ -144,7 +180,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--c-bg)' }}>
         <div className="w-5 h-5 border-2 border-white/10 border-t-white/40 rounded-full animate-spin" />
       </div>
     )
@@ -153,22 +189,29 @@ export default function App() {
   if (!user) return <AuthPage onLogin={handleLogin} />
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0a0a0f]">
-      <Sidebar
-        user={user}
-        groups={groups}
-        unreads={unreads}
-        activeConversation={activeConversation}
-        onSelectConversation={handleSelectConversation}
-        onGroupCreated={handleGroupCreated}
-        onLogout={handleLogout}
-      />
-      <ChatWindow
-        user={user}
-        activeConversation={activeConversation}
-        onGroupUpdated={handleGroupUpdated}
-        onGroupRemoved={handleGroupRemoved}
-      />
-    </div>
+    <SettingsProvider user={user} onUserUpdate={setUser}>
+      <div className="flex h-screen overflow-hidden" style={{ background: 'var(--c-bg)' }}>
+        <Sidebar
+          user={user}
+          groups={groups}
+          unreads={unreads}
+          userStatuses={userStatuses}
+          activeConversation={activeConversation}
+          onSelectConversation={handleSelectConversation}
+          onGroupCreated={handleGroupCreated}
+          onLogout={handleLogout}
+          onMarkAllRead={() => setUnreads({})}
+          onMarkRead={(key) => setUnreads(prev => ({ ...prev, [key]: 0 }))}
+          onMarkUnread={(key) => setUnreads(prev => ({ ...prev, [key]: 1 }))}
+        />
+        <ChatWindow
+          user={user}
+          activeConversation={activeConversation}
+          userStatuses={userStatuses}
+          onGroupUpdated={handleGroupUpdated}
+          onGroupRemoved={handleGroupRemoved}
+        />
+      </div>
+    </SettingsProvider>
   )
 }

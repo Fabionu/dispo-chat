@@ -1,10 +1,33 @@
 import { useState, useEffect, useCallback } from 'react'
-import { IconSearch, IconPlus, IconMoreVertical, IconBellOff, IconBell } from './Icons.jsx'
+import { IconSearch, IconPlus, IconMoreVertical, IconBellOff, IconBell, IconCheckAll, IconSettings } from './Icons.jsx'
 import { api } from '../services/api.js'
 import { getSocket } from '../services/socket.js'
 import ProfilePanel from './ProfilePanel.jsx'
 import CreateGroupModal from './CreateGroupModal.jsx'
 import NewDmModal from './NewDmModal.jsx'
+import { SettingsPanel } from './SettingsModal.jsx'
+import { StatusDot, STATUSES, useSettings } from '../contexts/SettingsContext.jsx'
+
+// ─── Compact icons ─────────────────────────────────────────────
+function IconGroup({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  )
+}
+
+function IconPerson({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  )
+}
 
 function UnreadBadge({ count }) {
   if (!count) return null
@@ -15,12 +38,43 @@ function UnreadBadge({ count }) {
   )
 }
 
-function ItemOptions({ convKey, muted, onToggleMute, onClose }) {
+// ─── Pin icon ──────────────────────────────────────────────────
+function IconPin({ size = 12 }) {
   return (
-    <div className="absolute right-0 top-full mt-1 z-[70] bg-[#1a1a28] border border-white/[0.08] rounded-xl overflow-hidden shadow-xl min-w-[170px]">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="17" x2="12" y2="22"/>
+      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>
+    </svg>
+  )
+}
+
+function ItemOptions({ convKey, unread, muted, pinned, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClose }) {
+  return (
+    <div className="absolute right-0 top-full mt-1 z-[70] border rounded-xl overflow-hidden shadow-xl min-w-[180px]" style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}>
+      <button
+        onClick={() => { onTogglePin(convKey); onClose() }}
+        className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
+      >
+        <IconPin size={12} /> {pinned ? 'Unpin' : 'Pin conversation'}
+      </button>
+      {unread > 0 ? (
+        <button
+          onClick={() => { onMarkRead?.(convKey); onClose() }}
+          className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
+        >
+          <IconCheckAll size={12} /> Mark as read
+        </button>
+      ) : (
+        <button
+          onClick={() => { onMarkUnread?.(convKey); onClose() }}
+          className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
+        >
+          <IconCheckAll size={12} /> Mark as unread
+        </button>
+      )}
       <button
         onClick={() => { onToggleMute(convKey); onClose() }}
-        className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.04] transition flex items-center gap-2.5"
+        className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
       >
         {muted
           ? <><IconBell size={12} /> Unmute notifications</>
@@ -31,7 +85,7 @@ function ItemOptions({ convKey, muted, onToggleMute, onClose }) {
   )
 }
 
-function GroupItem({ group, active, unread, muted, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onClick }) {
+function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
   const initials = group.name.slice(0, 2).toUpperCase()
   const time = group.last_message_at
     ? new Date(group.last_message_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
@@ -42,26 +96,50 @@ function GroupItem({ group, active, unread, muted, optionsOpen, onOpenOptions, o
     <div className={`relative group/item ${optionsOpen ? 'z-10' : ''}`}>
       <button
         onClick={onClick}
-        className={`w-full text-left px-3 py-3 rounded-xl transition-all flex items-center gap-3
-          ${active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.03]'}`}
+        className={`w-full text-left px-3 rounded-xl transition-all flex items-center
+          ${compact ? 'gap-2' : 'gap-3'}
+          ${active ? 'bg-white/[0.12]' : 'hover:bg-white/[0.09]'}`}
+        style={{ paddingTop: 'var(--c-row-py)', paddingBottom: 'var(--c-row-py)' }}
       >
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-semibold flex-shrink-0 transition-all
-          ${active ? 'bg-white/[0.12] text-white/70' : 'bg-white/[0.05] text-white/30'}`}>
-          {initials}
-        </div>
+        {compact ? (
+          /* Compact: small icon only */
+          <span className={`flex-shrink-0 ${active ? 'text-white/55' : 'text-white/25'}`}>
+            <IconGroup size={13} />
+          </span>
+        ) : (
+          /* Normal/Comfortable: initials square */
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-semibold flex-shrink-0 transition-all
+            ${active ? 'bg-white/[0.12] text-white/70' : 'bg-white/[0.05] text-white/30'}`}>
+            {initials}
+          </div>
+        )}
+
         <div className="flex-1 min-w-0">
-          <span className={`text-sm font-medium truncate block ${unread ? 'text-white' : 'text-white/95'}`}>
+          <span className={`truncate block font-medium
+            ${compact ? 'text-xs' : 'text-sm'}
+            ${unread ? 'text-white' : 'text-white/90'}`}>
             {group.name}
           </span>
-          <div className={`text-[11px] truncate mt-0.5 ${unread ? 'text-white/50' : 'text-white/25'}`}>
-            {group.last_message || 'No messages yet'}
+          {!compact && (
+            <div className={`text-[11px] truncate mt-0.5 ${unread ? 'text-white/50' : 'text-white/25'}`}>
+              {group.last_message || 'No messages yet'}
+            </div>
+          )}
+        </div>
+
+        {/* Right column */}
+        {compact ? (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {pinned && <IconPin size={9} />}
+            {unread > 0 && <UnreadBadge count={unread} />}
           </div>
-        </div>
-        {/* Right column: time + badge — fades out on hover */}
-        <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
-          {time && <span className="text-[10px] text-white/20 whitespace-nowrap">{time}</span>}
-          <UnreadBadge count={unread} />
-        </div>
+        ) : (
+          <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
+            {pinned && <span className="text-white/20"><IconPin size={9} /></span>}
+            {time && <span className="text-[10px] text-white/20 whitespace-nowrap">{time}</span>}
+            <UnreadBadge count={unread} />
+          </div>
+        )}
       </button>
 
       {/* Options button — fades in on hover */}
@@ -72,7 +150,7 @@ function GroupItem({ group, active, unread, muted, optionsOpen, onOpenOptions, o
         <button
           onClick={(e) => { e.stopPropagation(); optionsOpen ? onCloseOptions() : onOpenOptions(convKey) }}
           className={`w-6 h-6 flex items-center justify-center rounded-md transition-all
-            text-white/30 hover:text-white/70 hover:bg-white/[0.08]
+            text-white/30 hover:text-white/70 hover:bg-white/[0.12]
             ${optionsOpen ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100'}`}
         >
           <IconMoreVertical size={13} />
@@ -81,7 +159,12 @@ function GroupItem({ group, active, unread, muted, optionsOpen, onOpenOptions, o
           <ItemOptions
             convKey={convKey}
             muted={muted}
+            pinned={pinned}
             onToggleMute={onToggleMute}
+            onTogglePin={onTogglePin}
+            unread={unread}
+            onMarkRead={onMarkRead}
+            onMarkUnread={onMarkUnread}
             onClose={onCloseOptions}
           />
         )}
@@ -90,36 +173,77 @@ function GroupItem({ group, active, unread, muted, optionsOpen, onOpenOptions, o
   )
 }
 
-function DmItem({ conv, active, unread, muted, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onClick }) {
+function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
   const initials = `${conv.first_name?.[0] ?? ''}${conv.last_name?.[0] ?? ''}`.toUpperCase()
   const time = conv.last_message_at
     ? new Date(conv.last_message_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
     : ''
   const convKey = `dm:${conv.conv_id}`
+  const status  = userStatus ?? conv.status ?? 'available'
+  const statusColor = STATUSES.find(s => s.value === status)?.color ?? '#6b7280'
 
   return (
     <div className={`relative group/item ${optionsOpen ? 'z-10' : ''}`}>
       <button
         onClick={onClick}
-        className={`w-full text-left px-3 py-3 rounded-xl transition-all flex items-center gap-3
-          ${active ? 'bg-white/[0.07]' : 'hover:bg-white/[0.03]'}`}
+        className={`w-full text-left px-3 rounded-xl transition-all flex items-center
+          ${compact ? 'gap-2' : 'gap-3'}
+          ${active ? 'bg-white/[0.12]' : 'hover:bg-white/[0.09]'}`}
+        style={{ paddingTop: 'var(--c-row-py)', paddingBottom: 'var(--c-row-py)' }}
       >
-        <div className="w-9 h-9 rounded-full bg-white/[0.05] flex items-center justify-center text-[11px] font-medium text-white/30 flex-shrink-0">
-          {initials}
-        </div>
+        {compact ? (
+          /* Compact: person icon + status dot */
+          <span className="relative flex-shrink-0 flex items-center justify-center">
+            <span className={active ? 'text-white/55' : 'text-white/25'}>
+              <IconPerson size={13} />
+            </span>
+            <span
+              className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
+              style={{ background: statusColor, boxShadow: `0 0 0 1.5px var(--c-sidebar)` }}
+            />
+          </span>
+        ) : (
+          /* Normal/Comfortable: avatar + status dot */
+          <div className="relative flex-shrink-0">
+            <div className="w-9 h-9 rounded-full bg-white/[0.05] flex items-center justify-center text-[11px] font-medium text-white/30 overflow-hidden">
+              {conv.avatar_url
+                ? <img src={conv.avatar_url} alt="" className="w-full h-full object-cover" />
+                : initials
+              }
+            </div>
+            <span
+              className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2"
+              style={{ background: statusColor, borderColor: 'var(--c-sidebar)' }}
+            />
+          </div>
+        )}
+
         <div className="flex-1 min-w-0">
-          <span className={`text-sm font-medium truncate block ${unread ? 'text-white' : 'text-white/95'}`}>
+          <span className={`truncate block font-medium
+            ${compact ? 'text-xs' : 'text-sm'}
+            ${unread ? 'text-white' : 'text-white/90'}`}>
             {conv.first_name} {conv.last_name}
           </span>
-          <div className={`text-xs truncate mt-0.5 ${unread ? 'text-white/50' : 'text-white/30'}`}>
-            {conv.last_message || `@${conv.username}`}
+          {!compact && (
+            <div className={`text-xs truncate mt-0.5 ${unread ? 'text-white/50' : 'text-white/30'}`}>
+              {conv.last_message || `@${conv.username}`}
+            </div>
+          )}
+        </div>
+
+        {/* Right column */}
+        {compact ? (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {pinned && <span className="text-white/20"><IconPin size={9} /></span>}
+            {unread > 0 && <UnreadBadge count={unread} />}
           </div>
-        </div>
-        {/* Right column: time + badge — fades out on hover */}
-        <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
-          {time && <span className="text-[10px] text-white/20 whitespace-nowrap">{time}</span>}
-          <UnreadBadge count={unread} />
-        </div>
+        ) : (
+          <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
+            {pinned && <span className="text-white/20"><IconPin size={9} /></span>}
+            {time && <span className="text-[10px] text-white/20 whitespace-nowrap">{time}</span>}
+            <UnreadBadge count={unread} />
+          </div>
+        )}
       </button>
 
       {/* Options button — fades in on hover */}
@@ -130,7 +254,7 @@ function DmItem({ conv, active, unread, muted, optionsOpen, onOpenOptions, onClo
         <button
           onClick={(e) => { e.stopPropagation(); optionsOpen ? onCloseOptions() : onOpenOptions(convKey) }}
           className={`w-6 h-6 flex items-center justify-center rounded-md transition-all
-            text-white/30 hover:text-white/70 hover:bg-white/[0.08]
+            text-white/30 hover:text-white/70 hover:bg-white/[0.12]
             ${optionsOpen ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100'}`}
         >
           <IconMoreVertical size={13} />
@@ -139,7 +263,12 @@ function DmItem({ conv, active, unread, muted, optionsOpen, onOpenOptions, onClo
           <ItemOptions
             convKey={convKey}
             muted={muted}
+            pinned={pinned}
             onToggleMute={onToggleMute}
+            onTogglePin={onTogglePin}
+            unread={unread}
+            onMarkRead={onMarkRead}
+            onMarkUnread={onMarkUnread}
             onClose={onCloseOptions}
           />
         )}
@@ -148,11 +277,15 @@ function DmItem({ conv, active, unread, muted, optionsOpen, onOpenOptions, onClo
   )
 }
 
-export default function Sidebar({ user, groups, unreads = {}, activeConversation, onSelectConversation, onGroupCreated, onLogout }) {
+export default function Sidebar({ user, groups, unreads = {}, userStatuses = {}, activeConversation, onSelectConversation, onGroupCreated, onLogout, onMarkAllRead, onMarkRead, onMarkUnread }) {
+  const { appearance } = useSettings()
+  const compact = appearance?.density === 'compact'
   const [search, setSearch]               = useState('')
   const [dmConvs, setDmConvs]             = useState([])
   const [showProfile, setShowProfile]     = useState(false)
+  const [showSettings, setShowSettings]   = useState(false)
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [showHeaderMenu, setShowHeaderMenu]   = useState(false)
   const [optionsFor, setOptionsFor]       = useState(null)
   const [showNewDm, setShowNewDm]         = useState(false)
 
@@ -171,6 +304,24 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
       return new Set(saved ? JSON.parse(saved) : [])
     } catch { return new Set() }
   })
+
+  // Pinned conversations — persisted in localStorage
+  const [pinnedConvs, setPinnedConvs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dc_pinned')
+      return new Set(saved ? JSON.parse(saved) : [])
+    } catch { return new Set() }
+  })
+
+  const togglePin = (key) => {
+    setPinnedConvs(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      localStorage.setItem('dc_pinned', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   const toggleMute = (key) => {
     setMutedConvs(prev => {
@@ -220,35 +371,60 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
 
   const initials = `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
 
-  const filteredGroups = groups.filter(g =>
-    search === '' || g.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredGroups = groups
+    .filter(g => search === '' || g.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const pa = pinnedConvs.has(`group:${a.id}`), pb = pinnedConvs.has(`group:${b.id}`)
+      return pa === pb ? 0 : pa ? -1 : 1
+    })
 
-  const filteredDms = dmConvs.filter(c =>
-    search === '' ||
-    `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredDms = dmConvs
+    .filter(c => search === '' || `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const pa = pinnedConvs.has(`dm:${a.conv_id}`), pb = pinnedConvs.has(`dm:${b.conv_id}`)
+      return pa === pb ? 0 : pa ? -1 : 1
+    })
 
   return (
-    <div className="w-64 flex-shrink-0 flex flex-col h-full bg-[#0d0d14] border-r border-white/[0.05] relative">
+    <div className="w-72 flex-shrink-0 flex flex-col h-full border-r border-white/[0.05] relative" style={{ background: 'var(--c-sidebar)' }}>
 
       {/* Header */}
       <div className="px-4 pt-5 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 text-white/30">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </div>
           <span className="text-sm font-semibold text-white/50 tracking-tight">Dispo Chat</span>
         </div>
-        <button
-          onClick={() => setShowCreateGroup(true)}
-          className="w-6 h-6 flex items-center justify-center rounded-md text-white/20 hover:text-white/50 hover:bg-white/[0.05] transition"
-          title="New group"
-        >
-          <IconPlus size={13} />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowHeaderMenu(v => !v)}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-white/40 hover:text-white/70 hover:bg-white/[0.09] transition"
+          >
+            <IconMoreVertical size={15} />
+          </button>
+          {showHeaderMenu && (
+            <>
+              <div className="fixed inset-0 z-[60]" onClick={() => setShowHeaderMenu(false)} />
+              <div className="absolute right-0 top-full mt-1 z-[70] border rounded-xl overflow-hidden shadow-xl min-w-[180px]" style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}>
+                <button
+                  onClick={() => { setShowCreateGroup(true); setShowHeaderMenu(false) }}
+                  className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
+                >
+                  <IconPlus size={12} stroke={2} /> Create group
+                </button>
+                <button
+                  onClick={() => { onMarkAllRead?.(); setShowHeaderMenu(false) }}
+                  className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
+                >
+                  <IconCheckAll /> Mark all as read
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -262,7 +438,7 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white/[0.03] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white/60 placeholder-white/15 focus:outline-none focus:bg-white/[0.05] transition-all"
+            className="w-full bg-white/[0.03] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white/60 placeholder-white/15 outline-none focus:bg-white/[0.05] transition-colors"
           />
         </div>
       </div>
@@ -272,7 +448,7 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
 
         {/* Groups section */}
         <div className="mb-1">
-          <p className="text-[10px] text-white/25 uppercase tracking-widest px-3 mb-1.5">Groups</p>
+          <p className="text-[10px] text-white/40 uppercase tracking-widest px-3 mb-1.5">Groups</p>
           {filteredGroups.length === 0 ? (
             <p className="text-xs text-white/30 px-3 py-2">No groups</p>
           ) : (
@@ -286,10 +462,15 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
                   active={activeConversation?.type === 'group' && activeConversation?.group?.id === group.id}
                   unread={muted ? 0 : (unreads[convKey] || 0)}
                   muted={muted}
+                  pinned={pinnedConvs.has(convKey)}
+                  compact={compact}
                   optionsOpen={optionsFor === convKey}
                   onOpenOptions={(k) => setOptionsFor(k)}
                   onCloseOptions={() => setOptionsFor(null)}
                   onToggleMute={toggleMute}
+                  onTogglePin={togglePin}
+                  onMarkRead={onMarkRead}
+                  onMarkUnread={onMarkUnread}
                   onClick={() => onSelectConversation({ type: 'group', group })}
                 />
               )
@@ -301,22 +482,27 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
         {(filteredDms.length > 0 || search === '') && (
           <div className="mt-3">
             <div className="flex items-center justify-between px-3 mb-1.5">
-              <p className="text-[10px] text-white/25 uppercase tracking-widest">Direct Messages</p>
+              <p className="text-[10px] text-white/40 uppercase tracking-widest">Direct Messages</p>
               <button
                 onClick={() => setShowNewDm(true)}
-                className="w-4 h-4 flex items-center justify-center rounded text-white/20 hover:text-white/50 hover:bg-white/[0.05] transition"
+                className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white/70 hover:bg-white/[0.09] transition"
                 title="New message"
               >
-                <IconPlus size={11} />
+                <IconPlus size={12} stroke={2} />
               </button>
             </div>
             {filteredDms.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-5 px-3">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" opacity="0.18">
-                  <circle cx="11" cy="16" r="8" stroke="white" strokeWidth="1.2"/>
-                  <circle cx="21" cy="16" r="8" stroke="white" strokeWidth="1.2"/>
-                  <path d="M8 24 L5 28" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
-                  <path d="M24 24 L27 28" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                <svg width="36" height="30" viewBox="0 0 36 30" fill="none" opacity="0.2">
+                  {/* Bula din spate */}
+                  <rect x="8" y="4" width="22" height="15" rx="4" stroke="white" strokeWidth="1.3"/>
+                  <path d="M21 19 L19 23 L17 19" stroke="white" strokeWidth="1.3" strokeLinejoin="round" fill="none"/>
+                  {/* Bula din față */}
+                  <rect x="2" y="10" width="20" height="14" rx="3.5" fill="#0d0d14" stroke="white" strokeWidth="1.3"/>
+                  <path d="M10 24 L8 28 L13 24" stroke="white" strokeWidth="1.3" strokeLinejoin="round" fill="none"/>
+                  {/* Linii text */}
+                  <line x1="6" y1="15" x2="18" y2="15" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
+                  <line x1="6" y1="19" x2="14" y2="19" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
                 </svg>
                 <p className="text-[11px] text-white/20 text-center leading-relaxed">
                   No direct messages yet.<br />Use + to start one.
@@ -333,10 +519,16 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
                     active={activeConversation?.type === 'dm' && activeConversation?.convId === conv.conv_id}
                     unread={muted ? 0 : (unreads[convKey] || 0)}
                     muted={muted}
+                    pinned={pinnedConvs.has(convKey)}
+                    compact={compact}
+                    userStatus={userStatuses[conv.user_id]}
                     optionsOpen={optionsFor === convKey}
                     onOpenOptions={(k) => setOptionsFor(k)}
                     onCloseOptions={() => setOptionsFor(null)}
                     onToggleMute={toggleMute}
+                    onTogglePin={togglePin}
+                    onMarkRead={onMarkRead}
+                    onMarkUnread={onMarkUnread}
                     onClick={() => onSelectConversation({ type: 'dm', otherUser: conv, convId: conv.conv_id })}
                   />
                 )
@@ -347,23 +539,45 @@ export default function Sidebar({ user, groups, unreads = {}, activeConversation
       </div>
 
       {/* User footer */}
-      <div className="px-3 py-3 border-t border-white/[0.04]">
+      <div className="px-3 py-2.5 flex-shrink-0" style={{ borderTop: '1px solid var(--c-border)' }}>
         <button
-          onClick={() => setShowProfile(v => !v)}
-          className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.04] transition group"
+          onClick={() => setShowSettings(true)}
+          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-white/[0.07] transition text-left"
         >
-          <div className="w-7 h-7 rounded-full bg-white/[0.06] flex items-center justify-center text-[11px] font-medium text-white/40 flex-shrink-0 group-hover:bg-white/[0.09] transition">
-            {initials}
+          {/* Avatar + status */}
+          <div className="relative flex-shrink-0">
+            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-medium text-white/35 bg-white/[0.06]">
+              {user.avatar_url
+                ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                : initials
+              }
+            </div>
+            <span
+              className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2"
+              style={{
+                background: STATUSES.find(s => s.value === (user.status || 'available'))?.color ?? '#22c55e',
+                borderColor: 'var(--c-sidebar)',
+              }}
+            />
           </div>
-          <div className="flex-1 min-w-0 text-left">
-            <div className="text-xs text-white/95 truncate">{user.first_name} {user.last_name}</div>
-            <div className="text-[10px] text-white/25 font-mono mt-0.5">#{user.unique_code}</div>
+
+          {/* Name + status */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-white/85 truncate leading-none">{user.first_name} {user.last_name}</div>
+            <div className="text-[10px] text-white/30 mt-0.5 capitalize leading-none">
+              {STATUSES.find(s => s.value === (user.status || 'available'))?.label ?? 'Available'}
+            </div>
           </div>
+
         </button>
       </div>
 
       {showProfile && (
         <ProfilePanel user={user} onLogout={onLogout} onClose={() => setShowProfile(false)} />
+      )}
+
+      {showSettings && (
+        <SettingsPanel user={user} onClose={() => setShowSettings(false)} onLogout={onLogout} />
       )}
 
       {showCreateGroup && (

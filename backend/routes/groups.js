@@ -102,7 +102,8 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/members', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT u.id, u.first_name, u.last_name, u.username, u.unique_code, gm.role
+      `SELECT u.id, u.first_name, u.last_name, u.username, u.unique_code, u.avatar_url,
+              COALESCE(u.status, 'available') AS status, gm.role
        FROM group_members gm
        JOIN users u ON u.id = gm.user_id
        WHERE gm.group_id = $1
@@ -261,6 +262,67 @@ router.post('/:id/leave', async (req, res) => {
     )
     const name = me[0] ? `${me[0].first_name} ${me[0].last_name}` : 'A member'
     req.io.to(`group:${group_id}`).emit('group:member_removed', { user_id: req.user.id, name })
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// POST /api/groups/:id/pin — pin a message (any member)
+router.post('/:id/pin', async (req, res) => {
+  const group_id    = parseInt(req.params.id)
+  const { message_id } = req.body
+  if (!message_id) return res.status(400).json({ error: 'message_id is required' })
+
+  try {
+    const { rows: member } = await pool.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [group_id, req.user.id]
+    )
+    if (!member.length) return res.status(403).json({ error: 'Forbidden' })
+
+    const { rows: msgRows } = await pool.query(
+      'SELECT id, content, sender_id FROM group_messages WHERE id = $1 AND group_id = $2',
+      [message_id, group_id]
+    )
+    if (!msgRows.length) return res.status(404).json({ error: 'Message not found' })
+    const msg = msgRows[0]
+
+    await pool.query('UPDATE groups SET pinned_message_id = $1 WHERE id = $2', [message_id, group_id])
+
+    const { rows: userRows } = await pool.query(
+      'SELECT first_name, last_name FROM users WHERE id = $1',
+      [msg.sender_id]
+    )
+    const sender = userRows[0]
+    const pinned_message = {
+      id:         msg.id,
+      content:    msg.content,
+      first_name: sender?.first_name,
+      last_name:  sender?.last_name,
+    }
+
+    req.io.to(`group:${group_id}`).emit('message:pinned', { group_id, pinned_message })
+    res.json({ pinned_message })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// DELETE /api/groups/:id/pin — unpin (any member)
+router.delete('/:id/pin', async (req, res) => {
+  const group_id = parseInt(req.params.id)
+  try {
+    const { rows: member } = await pool.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [group_id, req.user.id]
+    )
+    if (!member.length) return res.status(403).json({ error: 'Forbidden' })
+
+    await pool.query('UPDATE groups SET pinned_message_id = NULL WHERE id = $1', [group_id])
+    req.io.to(`group:${group_id}`).emit('message:unpinned', { group_id })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)

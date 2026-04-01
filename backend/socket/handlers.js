@@ -22,7 +22,7 @@ export function registerSocketHandlers(io) {
     socket.on('group:join',  (groupId) => socket.join(`group:${groupId}`))
     socket.on('group:leave', (groupId) => socket.leave(`group:${groupId}`))
 
-    socket.on('group:message', async ({ group_id, content }, ack) => {
+    socket.on('group:message', async ({ group_id, content, reply_to_id }, ack) => {
       if (!group_id || !content?.trim()) return ack?.({ error: 'Invalid data' })
 
       try {
@@ -35,10 +35,10 @@ export function registerSocketHandlers(io) {
 
         // Save to DB
         const { rows } = await pool.query(
-          `INSERT INTO group_messages (group_id, sender_id, content)
-           VALUES ($1, $2, $3)
-           RETURNING id, group_id, content, created_at`,
-          [group_id, socket.user.id, content.trim()]
+          `INSERT INTO group_messages (group_id, sender_id, content, reply_to_id)
+           VALUES ($1, $2, $3, $4)
+           RETURNING id, group_id, content, created_at, reply_to_id`,
+          [group_id, socket.user.id, content.trim(), reply_to_id || null]
         )
         const msg = rows[0]
 
@@ -49,15 +49,35 @@ export function registerSocketHandlers(io) {
         )
         const sender = users[0]
 
+        // Get reply info if applicable
+        let reply_content = null, reply_first_name = null, reply_last_name = null
+        if (msg.reply_to_id) {
+          const { rows: replyRows } = await pool.query(
+            `SELECT m.content, u.first_name, u.last_name
+             FROM group_messages m JOIN users u ON u.id = m.sender_id
+             WHERE m.id = $1`,
+            [msg.reply_to_id]
+          )
+          if (replyRows[0]) {
+            reply_content    = replyRows[0].content
+            reply_first_name = replyRows[0].first_name
+            reply_last_name  = replyRows[0].last_name
+          }
+        }
+
         const payload = {
-          id:         msg.id,
-          group_id:   msg.group_id,
-          content:    msg.content,
-          created_at: msg.created_at,
-          sender_id:  sender.id,
-          first_name: sender.first_name,
-          last_name:  sender.last_name,
-          username:   sender.username,
+          id:               msg.id,
+          group_id:         msg.group_id,
+          content:          msg.content,
+          created_at:       msg.created_at,
+          reply_to_id:      msg.reply_to_id,
+          reply_content,
+          reply_first_name,
+          reply_last_name,
+          sender_id:        sender.id,
+          first_name:       sender.first_name,
+          last_name:        sender.last_name,
+          username:         sender.username,
         }
 
         // Broadcast to all in room (including sender)
@@ -116,6 +136,14 @@ export function registerSocketHandlers(io) {
         console.error(err)
         ack?.({ error: 'Server error' })
       }
+    })
+
+    // ─── User status ─────────────────────────────────────────────
+    socket.on('user:status_update', ({ status }) => {
+      const VALID = ['available', 'busy', 'away', 'dnd', 'offline']
+      if (!VALID.includes(status)) return
+      // Broadcast to all other connected clients
+      socket.broadcast.emit('user:status_changed', { user_id: socket.user.id, status })
     })
 
     // ─── Typing indicators ───────────────────────────────────────

@@ -16,6 +16,8 @@ router.get('/', async (req, res) => {
         u.last_name,
         u.username,
         u.unique_code,
+        u.avatar_url,
+        COALESCE(u.status, 'available') AS status,
         (SELECT content    FROM dm_messages WHERE conv_id = dc.id ORDER BY created_at DESC LIMIT 1) AS last_message,
         (SELECT created_at FROM dm_messages WHERE conv_id = dc.id ORDER BY created_at DESC LIMIT 1) AS last_message_at
       FROM dm_conversations dc

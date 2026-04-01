@@ -22,8 +22,8 @@ function Field({ label, type = 'text', value, onChange, placeholder, focused, fo
   const style = {
     ...iBase,
     padding: hasPad ? '12px 16px 12px 44px' : '12px 16px',
-    border: `1.5px solid ${focused === focusKey ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)'}`,
-    background: focused === focusKey ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.025)',
+    border: `1.5px solid ${focused === focusKey ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.14)'}`,
+    background: focused === focusKey ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
   }
   return (
     <div>
@@ -184,8 +184,8 @@ function RegisterForm({ onLogin }) {
   const iSimple = (f) => ({
     ...iBase,
     padding: '12px 16px',
-    border: `1.5px solid ${focused === f ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)'}`,
-    background: focused === f ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.025)',
+    border: `1.5px solid ${focused === f ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.14)'}`,
+    background: focused === f ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
   })
 
   return (
@@ -271,8 +271,8 @@ export default function AuthPage({ onLogin }) {
           flex: 1, padding: '9px 0',
           borderRadius: '8px', border: 'none',
           fontSize: '13px', fontWeight: 600,
-          background: active ? 'rgba(255,255,255,0.10)' : 'transparent',
-          color: active ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.25)',
+          background: active ? 'rgba(255,255,255,0.16)' : 'transparent',
+          color: active ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.40)',
           cursor: 'pointer', fontFamily: 'inherit',
           transition: 'all 0.2s',
         }}
@@ -317,8 +317,8 @@ export default function AuthPage({ onLogin }) {
           {/* Toggle tabs */}
           <div style={{
             display: 'flex', gap: '4px', marginBottom: '30px',
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.12)',
             borderRadius: '11px', padding: '4px',
           }}>
             {tabBtn('Log in', 'login')}

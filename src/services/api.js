@@ -25,7 +25,8 @@ export const api = {
   login:    (username, password) => request('POST', '/auth/login', { username, password }),
   register: (first_name, last_name, username, email, password) =>
     request('POST', '/auth/register', { first_name, last_name, username, email, password }),
-  me:       () => request('GET', '/auth/me'),
+  me:            () => request('GET', '/auth/me'),
+  updateProfile: (data) => request('PATCH', '/auth/profile', data),
 
   // Groups
   createGroup:      (name)                        => request('POST', '/groups', { name }),
@@ -43,8 +44,11 @@ export const api = {
   getMessageReads:  (msgId) => request('GET', `/group-messages/${msgId}/reads`),
 
   // Group messages (group conversation)
-  getGroupMessages: (groupId)          => request('GET', `/group-messages?group_id=${groupId}`),
-  sendGroupMessage: (groupId, content) => request('POST', '/group-messages', { group_id: groupId, content }),
+  getGroupMessages:  (groupId)          => request('GET', `/group-messages?group_id=${groupId}`),
+  sendGroupMessage:  (groupId, content) => request('POST', '/group-messages', { group_id: groupId, content }),
+  editGroupMessage:  (id, content)      => request('PATCH', `/group-messages/${id}`, { content }),
+  pinMessage:        (groupId, msgId)   => request('POST', `/groups/${groupId}/pin`, { message_id: msgId }),
+  unpinMessage:      (groupId)          => request('DELETE', `/groups/${groupId}/pin`),
 
   // Trips (will be integrated into group conversations later)
   getTrips:         (groupId, status) => request('GET', `/trips?group_id=${groupId}${status ? `&status=${status}` : ''}`),

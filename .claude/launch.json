@@ -4,9 +4,8 @@
     {
       "name": "dispo-chat",
       "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "${PORT}"],
-      "port": 5173,
-      "autoPort": true
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5173"],
+      "port": 5173
     }
   ]
 }
