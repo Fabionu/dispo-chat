@@ -22,11 +22,14 @@ const app    = express()
 const server = createServer(app)
 
 const CORS_ORIGIN = (origin, cb) => {
-  if (!origin) return cb(null, true)                        // server-to-server
-  if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true)
-  const allowed = process.env.FRONTEND_URL
-  if (allowed && origin === allowed) return cb(null, true)
-  cb(new Error('Not allowed by CORS'))
+  // Allow: no origin (server-to-server), localhost, or same Railway domain
+  if (!origin) return cb(null, true)
+  if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true)
+  if (process.env.RAILWAY_PUBLIC_DOMAIN && origin.includes(process.env.RAILWAY_PUBLIC_DOMAIN)) return cb(null, true)
+  if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return cb(null, true)
+  // In production, same-origin requests have origin = the app domain — allow all .railway.app
+  if (origin.endsWith('.railway.app')) return cb(null, true)
+  cb(null, false)
 }
 
 const io     = new Server(server, {
