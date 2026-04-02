@@ -23,10 +23,10 @@ export default function NewDmModal({ onClose, onStarted }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-sm bg-[#111118] border border-white/[0.05] rounded-2xl overflow-hidden shadow-2xl">
+      <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl" style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border-md)' }}>
 
-        <div className="px-6 py-5 border-b border-white/[0.05] flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white/95">New message</h2>
+        <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--c-border)' }}>
+          <h2 className="text-sm font-semibold text-white/90">New message</h2>
           <button onClick={onClose} className="text-white/20 hover:text-white/60 transition">
             <IconX size={16} />
           </button>

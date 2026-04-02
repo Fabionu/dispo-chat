@@ -2,43 +2,21 @@ import { useState } from 'react'
 import { IconX } from './Icons.jsx'
 import { api } from '../services/api.js'
 
-const inputStyle = (focused) => ({
-  width: '100%',
-  padding: '11px 14px',
-  border: `1.5px solid ${focused ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)'}`,
-  borderRadius: '9px',
-  fontSize: '13px',
-  background: focused ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.025)',
-  color: 'rgba(255,255,255,0.85)',
-  outline: 'none',
-  transition: 'all 0.2s',
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-})
-
-const labelStyle = {
-  display: 'block',
-  fontSize: '11px',
-  fontWeight: 500,
-  color: 'rgba(255,255,255,0.3)',
-  marginBottom: '6px',
-  letterSpacing: '0.02em',
-  textTransform: 'uppercase',
-}
-
 function Field({ label, value, onChange, placeholder, type = 'text' }) {
-  const [focused, setFocused] = useState(false)
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
+      <label className="block text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-1.5">
+        {label}
+      </label>
       <input
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        style={inputStyle(focused)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        className="w-full rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder-white/25 outline-none transition"
+        style={{ background: 'var(--c-surface2)', border: '1.5px solid var(--c-border-md)', boxSizing: 'border-box' }}
+        onFocus={e => e.target.style.borderColor = 'var(--c-accent)'}
+        onBlur={e => e.target.style.borderColor  = 'var(--c-border-md)'}
       />
     </div>
   )
@@ -70,13 +48,18 @@ export default function CreateTripModal({ groupId, onCreated, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-[#111118] border border-white/[0.05] rounded-2xl overflow-hidden shadow-2xl">
-
+      <div
+        className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border-md)' }}
+      >
         {/* Header */}
-        <div className="px-6 py-5 border-b border-white/[0.05] flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white/95">New Trip</h2>
-          <button onClick={onClose} className="text-white/20 hover:text-white/60 transition">
-            <IconX size={16} />
+        <div
+          className="px-6 py-5 flex items-center justify-between"
+          style={{ borderBottom: '1px solid var(--c-border)' }}
+        >
+          <h2 className="text-sm font-semibold text-white/90">New Trip</h2>
+          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition">
+            <IconX size={15} stroke={2.2} />
           </button>
         </div>
 
@@ -115,28 +98,18 @@ export default function CreateTripModal({ groupId, onCreated, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl text-sm text-white/30 hover:text-white/60 hover:bg-white/[0.04] transition"
+              className="flex-1 py-2.5 rounded-xl text-sm text-white/35 hover:text-white/65 transition"
+              style={{ background: 'var(--c-surface2)' }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !valid}
-              style={{
-                flex: 1,
-                padding: '10px',
-                background: loading || !valid ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.88)',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#0a0a0f',
-                cursor: loading || !valid ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s',
-                fontFamily: 'inherit',
-              }}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white/90 transition hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: 'var(--c-accent)' }}
             >
-              {loading ? 'Creating...' : 'Create trip'}
+              {loading ? 'Creating…' : 'Create trip'}
             </button>
           </div>
         </form>

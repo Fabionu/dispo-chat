@@ -55,12 +55,17 @@ export default function GroupSettingsModal({ group, isAdmin, onClose, onUpdated,
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm bg-[#111118] border border-white/[0.05] rounded-2xl overflow-hidden shadow-2xl">
-
-        <div className="px-6 py-5 border-b border-white/[0.05] flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-white/95">Group settings</h2>
-          <button onClick={onClose} className="text-white/20 hover:text-white/60 transition">
-            <IconX size={16} />
+      <div
+        className="relative z-10 w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border-md)' }}
+      >
+        <div
+          className="px-6 py-5 flex items-center justify-between"
+          style={{ borderBottom: '1px solid var(--c-border)' }}
+        >
+          <h2 className="text-sm font-semibold text-white/90">Group settings</h2>
+          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition">
+            <IconX size={15} stroke={2.2} />
           </button>
         </div>
 
@@ -69,19 +74,22 @@ export default function GroupSettingsModal({ group, isAdmin, onClose, onUpdated,
           {isAdmin && (
             <>
               <div>
-                <label className="block text-[11px] font-medium text-white/30 uppercase tracking-wider mb-1.5">
+                <label className="block text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-1.5">
                   Group name
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={e => { setName(e.target.value); setError('') }}
-                  className="w-full bg-white/[0.04] border border-white/[0.07] rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder-white/20 focus:outline-none focus:border-white/[0.18] focus:bg-white/[0.06] transition"
+                  className="w-full rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder-white/20 outline-none transition"
+                  style={{ background: 'var(--c-surface2)', border: '1.5px solid var(--c-border-md)' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--c-accent)'}
+                  onBlur={e => e.target.style.borderColor  = 'var(--c-border-md)'}
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-white/30 uppercase tracking-wider mb-1.5">
+                <label className="block text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-1.5">
                   Description{' '}
                   <span className="text-white/15 normal-case tracking-normal font-normal">— optional</span>
                 </label>
@@ -89,8 +97,11 @@ export default function GroupSettingsModal({ group, isAdmin, onClose, onUpdated,
                   type="text"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="Short note about this group..."
-                  className="w-full bg-white/[0.04] border border-white/[0.07] rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder-white/20 focus:outline-none focus:border-white/[0.18] focus:bg-white/[0.06] transition"
+                  placeholder="Short note about this group…"
+                  className="w-full rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder-white/20 outline-none transition"
+                  style={{ background: 'var(--c-surface2)', border: '1.5px solid var(--c-border-md)' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--c-accent)'}
+                  onBlur={e => e.target.style.borderColor  = 'var(--c-border-md)'}
                 />
               </div>
 
@@ -99,24 +110,13 @@ export default function GroupSettingsModal({ group, isAdmin, onClose, onUpdated,
               <button
                 onClick={handleSave}
                 disabled={saving || !name.trim()}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: saving || !name.trim() ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.88)',
-                  border: 'none',
-                  borderRadius: '12px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: '#0a0a0f',
-                  cursor: saving || !name.trim() ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s',
-                  fontFamily: 'inherit',
-                }}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white/90 transition hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: 'var(--c-accent)' }}
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
 
-              <div className="border-t border-white/[0.04]" />
+              <div style={{ borderTop: '1px solid var(--c-border)' }} />
             </>
           )}
 

@@ -24,25 +24,24 @@ export default function CreateGroupModal({ onCreated, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.6)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-sm mx-4 bg-[#111118] border border-white/[0.08] rounded-2xl p-6 shadow-2xl">
-
+      <div
+        className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+        style={{ background: 'var(--c-surface)', border: '1px solid var(--c-border-md)' }}
+      >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-sm font-semibold text-white/95">Create a group</h2>
-          <button onClick={onClose} className="text-white/20 hover:text-white/50 transition">
-            <IconX size={15} />
+          <h2 className="text-sm font-semibold text-white/90">Create a group</h2>
+          <button onClick={onClose} className="text-white/30 hover:text-white/70 transition">
+            <IconX size={15} stroke={2.2} />
           </button>
         </div>
 
         <form onSubmit={handleCreate}>
           <div style={{ marginBottom: 12 }}>
-            <label style={{
-              display: 'block', fontSize: 12, fontWeight: 500,
-              color: 'rgba(255,255,255,0.3)', marginBottom: 7, letterSpacing: '0.01em',
-            }}>
+            <label className="block text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">
               Group name
             </label>
             <input
@@ -51,15 +50,10 @@ export default function CreateGroupModal({ onCreated, onClose }) {
               onChange={e => { setName(e.target.value); setError('') }}
               placeholder="e.g. Fast Transport SRL"
               autoFocus
-              style={{
-                width: '100%', padding: '11px 14px',
-                border: '1.5px solid rgba(255,255,255,0.07)', borderRadius: 9,
-                fontSize: 13, background: 'rgba(255,255,255,0.025)',
-                color: 'rgba(255,255,255,0.85)', outline: 'none',
-                transition: 'all 0.2s', fontFamily: 'inherit', boxSizing: 'border-box',
-              }}
-              onFocus={e => { e.target.style.border = '1.5px solid rgba(255,255,255,0.18)'; e.target.style.background = 'rgba(255,255,255,0.04)' }}
-              onBlur={e => { e.target.style.border = '1.5px solid rgba(255,255,255,0.07)'; e.target.style.background = 'rgba(255,255,255,0.025)' }}
+              className="w-full rounded-xl px-4 py-2.5 text-sm text-white/90 placeholder-white/25 outline-none transition"
+              style={{ background: 'var(--c-surface2)', border: '1.5px solid var(--c-border-md)', boxSizing: 'border-box' }}
+              onFocus={e => e.target.style.borderColor = 'var(--c-accent)'}
+              onBlur={e => e.target.style.borderColor  = 'var(--c-border-md)'}
             />
           </div>
 
@@ -68,17 +62,10 @@ export default function CreateGroupModal({ onCreated, onClose }) {
           <button
             type="submit"
             disabled={loading || !name.trim()}
-            style={{
-              width: '100%', padding: '11px',
-              background: loading || !name.trim() ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.88)',
-              border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 600,
-              color: '#0a0a0f', cursor: loading || !name.trim() ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s', fontFamily: 'inherit',
-            }}
-            onMouseEnter={e => { if (!loading && name.trim()) e.currentTarget.style.background = '#ffffff' }}
-            onMouseLeave={e => { if (!loading && name.trim()) e.currentTarget.style.background = 'rgba(255,255,255,0.88)' }}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold text-white/90 transition hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'var(--c-accent)' }}
           >
-            {loading ? 'Creating...' : 'Create group →'}
+            {loading ? 'Creating…' : 'Create group →'}
           </button>
         </form>
       </div>
