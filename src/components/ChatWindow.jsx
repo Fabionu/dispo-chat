@@ -784,12 +784,26 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       setMessages(prev => prev.map(m => m.id === id ? { ...m, content, edited_at } : m))
     }
 
-    const handleMessagePinned = ({ pinned_message }) => {
+    const handleMessagePinned = ({ pinned_message, pinned_by }) => {
       setPinnedMsg(pinned_message)
+      if (pinned_by) {
+        setMessages(prev => [...prev, {
+          id:      `sys-pin-${Date.now()}`,
+          type:    'system',
+          content: `${pinned_by.first_name} ${pinned_by.last_name} pinned a message`,
+        }])
+      }
     }
 
-    const handleMessageUnpinned = () => {
+    const handleMessageUnpinned = ({ unpinned_by }) => {
       setPinnedMsg(null)
+      if (unpinned_by) {
+        setMessages(prev => [...prev, {
+          id:      `sys-unpin-${Date.now()}`,
+          type:    'system',
+          content: `${unpinned_by.first_name} ${unpinned_by.last_name} unpinned a message`,
+        }])
+      }
     }
 
     const handleTypingStart = ({ user_id, username }) => {
@@ -1405,7 +1419,9 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
           <span className="text-xs text-white/45">
             {typers.length === 1
               ? `${typers[0].username} is typing...`
-              : `${typers.map(t => t.username).join(', ')} are typing...`}
+              : typers.length === 2
+              ? `${typers[0].username} and ${typers[1].username} are typing...`
+              : `${typers[0].username}, ${typers[1].username} and ${typers.length - 2} more are typing...`}
           </span>
         </div>
       )}

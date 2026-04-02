@@ -315,7 +315,8 @@ router.post('/:id/pin', async (req, res) => {
       last_name:  sender?.last_name,
     }
 
-    req.io.to(`group:${group_id}`).emit('message:pinned', { group_id, pinned_message })
+    const { rows: pinnedBy } = await pool.query('SELECT first_name, last_name FROM users WHERE id = $1', [req.user.id])
+    req.io.to(`group:${group_id}`).emit('message:pinned', { group_id, pinned_message, pinned_by: pinnedBy[0] })
     res.json({ pinned_message })
   } catch (err) {
     console.error(err)
@@ -334,7 +335,8 @@ router.delete('/:id/pin', async (req, res) => {
     if (!member.length) return res.status(403).json({ error: 'Forbidden' })
 
     await pool.query('UPDATE groups SET pinned_message_id = NULL WHERE id = $1', [group_id])
-    req.io.to(`group:${group_id}`).emit('message:unpinned', { group_id })
+    const { rows: unpinnedBy } = await pool.query('SELECT first_name, last_name FROM users WHERE id = $1', [req.user.id])
+    req.io.to(`group:${group_id}`).emit('message:unpinned', { group_id, unpinned_by: unpinnedBy[0] })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)

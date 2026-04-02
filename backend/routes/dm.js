@@ -228,7 +228,8 @@ router.post('/:id/pin', async (req, res) => {
     )
     const pinned_message = { id: msg.id, content: msg.content, ...userRows[0] }
 
-    req.io.to(`dm:${convId}`).emit('message:pinned', { conv_id: convId, pinned_message })
+    const { rows: pinnedBy } = await pool.query('SELECT first_name, last_name FROM users WHERE id = $1', [req.user.id])
+    req.io.to(`dm:${convId}`).emit('message:pinned', { conv_id: convId, pinned_message, pinned_by: pinnedBy[0] })
     res.json({ pinned_message })
   } catch (err) {
     console.error(err)
@@ -247,7 +248,8 @@ router.delete('/:id/pin', async (req, res) => {
 
   try {
     await pool.query('UPDATE dm_conversations SET pinned_message_id = NULL WHERE id = $1', [convId])
-    req.io.to(`dm:${convId}`).emit('message:unpinned', { conv_id: convId })
+    const { rows: unpinnedBy } = await pool.query('SELECT first_name, last_name FROM users WHERE id = $1', [req.user.id])
+    req.io.to(`dm:${convId}`).emit('message:unpinned', { conv_id: convId, unpinned_by: unpinnedBy[0] })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)
