@@ -93,11 +93,15 @@ export const THEMES = {
 // ─── Accent presets ───────────────────────────────────────────
 export const ACCENTS = {
   indigo:  { '--c-accent': '#818cf8', '--c-accent-muted': 'rgba(129,140,248,0.15)', label: 'Indigo',  msgOwnDark: 'rgba(129,140,248,0.28)', msgOwnLight: '#c8ccfc' },
+  violet:  { '--c-accent': '#c084fc', '--c-accent-muted': 'rgba(192,132,252,0.13)', label: 'Violet',  msgOwnDark: 'rgba(192,132,252,0.24)', msgOwnLight: '#debdfe' },
   sky:     { '--c-accent': '#38bdf8', '--c-accent-muted': 'rgba(56,189,248,0.13)',  label: 'Sky',     msgOwnDark: 'rgba(56,189,248,0.24)',  msgOwnLight: '#b6eafd' },
+  teal:    { '--c-accent': '#2dd4bf', '--c-accent-muted': 'rgba(45,212,191,0.13)',  label: 'Teal',    msgOwnDark: 'rgba(45,212,191,0.22)',  msgOwnLight: '#a7f0e8' },
   emerald: { '--c-accent': '#34d399', '--c-accent-muted': 'rgba(52,211,153,0.13)',  label: 'Emerald', msgOwnDark: 'rgba(52,211,153,0.22)',  msgOwnLight: '#b6f0dc' },
   amber:   { '--c-accent': '#fbbf24', '--c-accent-muted': 'rgba(251,191,36,0.13)',  label: 'Amber',   msgOwnDark: 'rgba(251,191,36,0.24)',  msgOwnLight: '#fde99c' },
+  orange:  { '--c-accent': '#fb923c', '--c-accent-muted': 'rgba(251,146,60,0.13)',  label: 'Orange',  msgOwnDark: 'rgba(251,146,60,0.24)',  msgOwnLight: '#fed5b0' },
   rose:    { '--c-accent': '#fb7185', '--c-accent-muted': 'rgba(251,113,133,0.13)', label: 'Rose',    msgOwnDark: 'rgba(251,113,133,0.24)', msgOwnLight: '#fcc2c9' },
-  violet:  { '--c-accent': '#c084fc', '--c-accent-muted': 'rgba(192,132,252,0.13)', label: 'Violet',  msgOwnDark: 'rgba(192,132,252,0.24)', msgOwnLight: '#debdfe' },
+  pink:    { '--c-accent': '#f472b6', '--c-accent-muted': 'rgba(244,114,182,0.13)', label: 'Pink',    msgOwnDark: 'rgba(244,114,182,0.24)', msgOwnLight: '#fbbfdc' },
+  slate:   { '--c-accent': '#94a3b8', '--c-accent-muted': 'rgba(148,163,184,0.13)', label: 'Slate',   msgOwnDark: 'rgba(148,163,184,0.24)', msgOwnLight: '#d0d8e4' },
 }
 
 // ─── Font sizes ───────────────────────────────────────────────

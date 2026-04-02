@@ -539,41 +539,44 @@ function AppearanceTab({ appearance, onUpdate }) {
 
       {/* Accent */}
       <div>
-        <div className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2.5">Accent</div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="text-[10px] font-semibold text-white/30 uppercase tracking-widest">Accent</div>
+          <div className="text-[10px] text-white/40 capitalize">{ACCENTS[appearance.accent]?.label}</div>
+        </div>
+        <div className="grid grid-cols-5 gap-2">
           {Object.entries(ACCENTS).map(([key, a]) => {
             const active = appearance.accent === key
             return (
               <button
                 key={key}
-                onClick={() => onUpdate({ accent: active && key !== 'indigo' ? 'indigo' : key })}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs transition
-                  ${active
-                    ? 'ring-2 ring-[var(--c-accent)] bg-white/[0.05]'
-                    : 'ring-1 ring-white/[0.07] hover:ring-white/[0.15]'}`}
+                onClick={() => onUpdate({ accent: key })}
+                title={a.label}
+                className="flex flex-col items-center gap-1.5 group"
               >
                 <span
-                  className="w-4 h-4 rounded-full flex-shrink-0"
-                  style={{ background: a['--c-accent'] }}
-                />
-                <span className="text-white/70 flex-1 text-left">{a.label}</span>
-                {active && (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-white/60 flex-shrink-0">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                )}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-transform group-hover:scale-110
+                    ${active ? 'ring-2 ring-offset-2 ring-offset-[var(--c-surface)] scale-110' : ''}`}
+                  style={{
+                    background: a['--c-accent'],
+                    boxShadow: active ? `0 0 10px ${a['--c-accent']}55` : 'none',
+                    ringColor: a['--c-accent'],
+                    outline: active ? `2px solid ${a['--c-accent']}` : '2px solid transparent',
+                    outlineOffset: '3px',
+                  }}
+                >
+                  {active && (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.7)" strokeWidth="3" strokeLinecap="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  )}
+                </span>
+                <span className={`text-[9px] transition ${active ? 'text-white/70' : 'text-white/30 group-hover:text-white/50'}`}>
+                  {a.label}
+                </span>
               </button>
             )
           })}
         </div>
-        {appearance.accent !== 'indigo' && (
-          <button
-            onClick={() => onUpdate({ accent: 'indigo' })}
-            className="mt-2 text-[10px] text-white/30 hover:text-white/55 transition"
-          >
-            ↩ Reset to default
-          </button>
-        )}
       </div>
 
       {/* Font size */}
