@@ -844,7 +844,18 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
 
     const handleReadUpdate    = ()               => setReadsRefreshKey(k => k + 1)
 
-    const handleMemberRemoved = ({ user_id, name }) => {
+    const handleGroupUpdated = (updatedGroup) => {
+      if (updatedGroup.id !== group.id) return
+      if (updatedGroup.name && updatedGroup.name !== group.name) {
+        setMessages(prev => [...prev, {
+          id:      `sys-rename-${Date.now()}`,
+          type:    'system',
+          content: `Group renamed to "${updatedGroup.name}"`,
+        }])
+      }
+    }
+
+    const handleMemberRemoved = ({ user_id, name, left }) => {
       if (user_id === user.id) {
         onGroupRemoved?.(group.id)
       } else {
@@ -852,7 +863,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
         setMessages(prev => [...prev, {
           id:      `sys-${Date.now()}`,
           type:    'system',
-          content: `${name} was removed from the group`,
+          content: left ? `${name} left the group` : `${name} was removed from the group`,
         }])
       }
     }
@@ -868,16 +879,18 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       }])
     }
 
+    socket.on('group:updated',             handleGroupUpdated)
     socket.on('group:member_removed',      handleMemberRemoved)
     socket.on('group:member_role_changed', handleRoleChanged)
     socket.on('group:read_update',         handleReadUpdate)
 
     return () => {
+      socket.off('group:updated',             handleGroupUpdated)
       socket.off('group:member_removed',      handleMemberRemoved)
       socket.off('group:member_role_changed', handleRoleChanged)
       socket.off('group:read_update',         handleReadUpdate)
     }
-  }, [group?.id, user.id])
+  }, [group?.id, group?.name, user.id])
 
   // ─── Join / leave room when conversation changes ──────────────
   useEffect(() => {

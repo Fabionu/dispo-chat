@@ -257,6 +257,34 @@ router.delete('/:id/pin', async (req, res) => {
   }
 })
 
+// DELETE /api/dm/:id — delete (leave) a DM conversation for current user
+router.delete('/:id', async (req, res) => {
+  const convId = parseInt(req.params.id)
+  const { rows: auth } = await pool.query(
+    'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+    [convId, req.user.id]
+  )
+  if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    // Remove this user from participants — conversation stays for the other user
+    await pool.query(
+      'DELETE FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+      [convId, req.user.id]
+    )
+    // If no participants left, clean up the conversation entirely
+    const { rows: remaining } = await pool.query(
+      'SELECT 1 FROM dm_participants WHERE conv_id = $1', [convId]
+    )
+    if (!remaining.length) {
+      await pool.query('DELETE FROM dm_conversations WHERE id = $1', [convId])
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 // POST /api/dm/:id/read — update read cursor for DM conversation
 router.post('/:id/read', async (req, res) => {
   const convId = parseInt(req.params.id)

@@ -273,7 +273,7 @@ router.post('/:id/leave', async (req, res) => {
       [group_id, req.user.id]
     )
     const name = me[0] ? `${me[0].first_name} ${me[0].last_name}` : 'A member'
-    req.io.to(`group:${group_id}`).emit('group:member_removed', { user_id: req.user.id, name })
+    req.io.to(`group:${group_id}`).emit('group:member_removed', { user_id: req.user.id, name, left: true })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)

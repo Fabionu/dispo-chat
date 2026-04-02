@@ -48,7 +48,7 @@ function IconPin({ size = 12 }) {
   )
 }
 
-function ItemOptions({ convKey, unread, muted, pinned, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClose }) {
+function ItemOptions({ convKey, unread, muted, pinned, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onDelete, onClose }) {
   return (
     <div className="absolute right-0 top-full mt-1 z-[70] border rounded-xl overflow-hidden shadow-xl min-w-[180px]" style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}>
       <button
@@ -81,6 +81,17 @@ function ItemOptions({ convKey, unread, muted, pinned, onToggleMute, onMarkRead,
           : <><IconBellOff size={12} /> Mute notifications</>
         }
       </button>
+      {onDelete && (
+        <button
+          onClick={() => { onDelete(convKey); onClose() }}
+          className="w-full text-left px-4 py-2.5 text-xs text-red-400/70 hover:text-red-400 hover:bg-white/[0.09] transition flex items-center gap-2.5"
+        >
+          <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+          {convKey.startsWith('group:') ? 'Leave group' : 'Delete conversation'}
+        </button>
+      )}
     </div>
   )
 }
@@ -99,7 +110,7 @@ function TypingDots() {
   )
 }
 
-function GroupItem({ group, active, unread, muted, pinned, compact, typingLabel, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
+function GroupItem({ group, active, unread, muted, pinned, compact, typingLabel, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onDelete, onClick }) {
   const initials = group.name.slice(0, 2).toUpperCase()
   const time = group.last_message_at
     ? new Date(group.last_message_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
@@ -183,6 +194,7 @@ function GroupItem({ group, active, unread, muted, pinned, compact, typingLabel,
             unread={unread}
             onMarkRead={onMarkRead}
             onMarkUnread={onMarkUnread}
+            onDelete={onDelete}
             onClose={onCloseOptions}
           />
         )}
@@ -191,7 +203,7 @@ function GroupItem({ group, active, unread, muted, pinned, compact, typingLabel,
   )
 }
 
-function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, typingLabel, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
+function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, typingLabel, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onDelete, onClick }) {
   const initials = `${conv.first_name?.[0] ?? ''}${conv.last_name?.[0] ?? ''}`.toUpperCase()
   const time = conv.last_message_at
     ? new Date(conv.last_message_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
@@ -291,6 +303,7 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, typi
             unread={unread}
             onMarkRead={onMarkRead}
             onMarkUnread={onMarkUnread}
+            onDelete={onDelete}
             onClose={onCloseOptions}
           />
         )}
@@ -336,6 +349,19 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
       return new Set(saved ? JSON.parse(saved) : [])
     } catch { return new Set() }
   })
+
+  const handleDelete = async (convKey) => {
+    const [type, id] = convKey.split(':')
+    try {
+      if (type === 'dm') {
+        await api.deleteDmConv(parseInt(id))
+        setDmConvs(prev => prev.filter(c => c.conv_id !== parseInt(id)))
+      } else if (type === 'group') {
+        await api.leaveGroup(parseInt(id))
+        // onGroupRemoved is handled by socket event in App
+      }
+    } catch {}
+  }
 
   const togglePin = (key) => {
     setPinnedConvs(prev => {
@@ -556,6 +582,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
                   onTogglePin={togglePin}
                   onMarkRead={onMarkRead}
                   onMarkUnread={onMarkUnread}
+                  onDelete={handleDelete}
                   onClick={() => onSelectConversation({ type: 'group', group })}
                 />
               )
@@ -615,6 +642,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
                     onTogglePin={togglePin}
                     onMarkRead={onMarkRead}
                     onMarkUnread={onMarkUnread}
+                    onDelete={handleDelete}
                     onClick={() => onSelectConversation({ type: 'dm', otherUser: conv, convId: conv.conv_id })}
                   />
                 )
