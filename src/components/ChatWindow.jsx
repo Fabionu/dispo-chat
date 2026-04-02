@@ -824,8 +824,15 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       }
     }
 
-    const handleRoleChanged = ({ user_id, role }) => {
+    const handleRoleChanged = ({ user_id, role, name }) => {
       setMembers(prev => prev.map(m => m.id === user_id ? { ...m, role } : m))
+      const displayName = name || 'A member'
+      const roleLabel   = role.charAt(0).toUpperCase() + role.slice(1)
+      setMessages(prev => [...prev, {
+        id:      `sys-role-${Date.now()}`,
+        type:    'system',
+        content: `${displayName} is now a ${roleLabel}`,
+      }])
     }
 
     socket.on('group:member_removed',      handleMemberRemoved)

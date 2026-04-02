@@ -173,7 +173,12 @@ router.patch('/:id/members/:userId', async (req, res) => {
       `UPDATE group_members SET role = $1 WHERE group_id = $2 AND user_id = $3`,
       [role, group_id, target_id]
     )
-    req.io.to(`group:${group_id}`).emit('group:member_role_changed', { user_id: target_id, role })
+    const { rows: uRows } = await pool.query(
+      `SELECT first_name, last_name FROM users WHERE id = $1`,
+      [target_id]
+    )
+    const name = uRows[0] ? `${uRows[0].first_name} ${uRows[0].last_name}` : 'Unknown'
+    req.io.to(`group:${group_id}`).emit('group:member_role_changed', { user_id: target_id, role, name })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)
