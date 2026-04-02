@@ -986,7 +986,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
     if (!el) return
     const onScroll = () => {
       const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-      setShowScrollBtn(distFromBottom > 300)
+      setShowScrollBtn(distFromBottom > 225)
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
