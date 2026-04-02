@@ -562,21 +562,21 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
       </div>
 
       {/* User footer */}
-      <div className="px-3 py-2.5 flex-shrink-0" style={{ borderTop: '1px solid var(--c-border)' }}>
+      <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid var(--c-border)' }}>
         <button
           onClick={() => setShowSettings(true)}
-          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-white/[0.07] transition text-left"
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-white/[0.07] active:scale-[0.97] transition-all duration-150 text-left"
         >
           {/* Avatar + status */}
           <div className="relative flex-shrink-0">
-            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-medium text-white/35 bg-white/[0.06]">
+            <div className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-sm font-medium text-white/35 bg-white/[0.06]">
               {user.avatar_url
                 ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
                 : initials
               }
             </div>
             <span
-              className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2"
+              className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2"
               style={{
                 background: STATUSES.find(s => s.value === (user.status || 'available'))?.color ?? '#22c55e',
                 borderColor: 'var(--c-sidebar)',
@@ -586,12 +586,13 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
 
           {/* Name + status */}
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium text-white/85 truncate leading-none">{user.first_name} {user.last_name}</div>
-            <div className="text-[10px] text-white/30 mt-0.5 capitalize leading-none">
+            <div className="text-sm font-semibold text-white/90 truncate leading-none">{user.first_name} {user.last_name}</div>
+            <div className="text-xs text-white/35 mt-1 capitalize leading-none">
               {STATUSES.find(s => s.value === (user.status || 'available'))?.label ?? 'Available'}
             </div>
           </div>
 
+          <IconSettings size={16} className="flex-shrink-0 text-white/20 group-hover:text-white/40 transition" />
         </button>
       </div>
 
