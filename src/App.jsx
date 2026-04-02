@@ -149,9 +149,13 @@ export default function App() {
     connectSocket(token)
     api.me()
       .then(async ({ user: me }) => {
-        const { groups } = await api.getGroups()
+        const [{ groups }, { unreads }] = await Promise.all([
+          api.getGroups(),
+          api.getUnreads(),
+        ])
         setUser(me)
         setGroups(groups)
+        setUnreads(unreads)
       })
       .catch(() => {
         localStorage.removeItem('dc_token')
@@ -166,8 +170,12 @@ export default function App() {
     else sessionStorage.setItem('dc_token', token)
     connectSocket(token)
     setUser(user)
-    const { groups } = await api.getGroups()
+    const [{ groups }, { unreads }] = await Promise.all([
+      api.getGroups(),
+      api.getUnreads(),
+    ])
     setGroups(groups)
+    setUnreads(unreads)
   }
 
   const handleLogout = () => {

@@ -88,6 +88,40 @@ router.post('/', async (req, res) => {
   }
 })
 
+// GET /api/dm/unreads — unread counts for all conversations (groups + DMs)
+router.get('/unreads', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 'group' AS type, gm.group_id::text AS id, COUNT(*) AS count
+      FROM group_messages gm
+      JOIN group_members mem ON mem.group_id = gm.group_id AND mem.user_id = $1
+      LEFT JOIN group_read_cursors grc ON grc.group_id = gm.group_id AND grc.user_id = $1
+      WHERE gm.sender_id != $1
+        AND gm.created_at > COALESCE(grc.last_read_at, '1970-01-01')
+      GROUP BY gm.group_id
+
+      UNION ALL
+
+      SELECT 'dm' AS type, dm.conv_id::text AS id, COUNT(*) AS count
+      FROM dm_messages dm
+      JOIN dm_participants dp ON dp.conv_id = dm.conv_id AND dp.user_id = $1
+      LEFT JOIN dm_read_cursors drc ON drc.conv_id = dm.conv_id AND drc.user_id = $1
+      WHERE dm.sender_id != $1
+        AND dm.created_at > COALESCE(drc.last_read_at, '1970-01-01')
+      GROUP BY dm.conv_id
+    `, [req.user.id])
+
+    const unreads = {}
+    for (const row of rows) {
+      unreads[`${row.type}:${row.id}`] = parseInt(row.count)
+    }
+    res.json({ unreads })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 // GET /api/dm/:id/messages
 router.get('/:id/messages', async (req, res) => {
   const convId = parseInt(req.params.id)
@@ -135,6 +169,28 @@ router.post('/:id/messages', async (req, res) => {
       [convId, req.user.id, content.trim()]
     )
     res.status(201).json({ message: msg })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// POST /api/dm/:id/read — update read cursor for DM conversation
+router.post('/:id/read', async (req, res) => {
+  const convId = parseInt(req.params.id)
+  const { rows: auth } = await pool.query(
+    'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+    [convId, req.user.id]
+  )
+  if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
+  try {
+    await pool.query(
+      `INSERT INTO dm_read_cursors (conv_id, user_id, last_read_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (conv_id, user_id) DO UPDATE SET last_read_at = NOW()`,
+      [convId, req.user.id]
+    )
+    res.json({ ok: true })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })

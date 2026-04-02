@@ -670,7 +670,12 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
     const handleNewMessage = ({ type, message }) => {
       const isOwn = message.sender_id === user.id
       if (!isOwn) {
-        playReceive()
+        const convKey = type === 'group' ? `group:${message.group_id}` : `dm:${message.conv_id}`
+        const isMuted = (() => {
+          try { return (JSON.parse(localStorage.getItem('dc_muted') || '[]')).includes(convKey) }
+          catch { return false }
+        })()
+        if (!isMuted) playReceive()
         if (type === 'group' && message.group_id) {
           api.markGroupRead(message.group_id).catch(() => {})
         }
@@ -685,6 +690,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
           isOwn,
           senderName:  `${message.first_name} ${message.last_name}`,
           avatar:      `${message.first_name?.[0] ?? ''}${message.last_name?.[0] ?? ''}`.toUpperCase(),
+          avatar_url:  message.avatar_url || null,
           edited_at:   null,
           createdAt:   message.created_at,
           replyTo:     message.reply_to_id ? {
@@ -753,8 +759,6 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
     const socket = getSocket()
     if (!socket || !group) return
 
-    const handleGroupUpdated  = (updated)        => onGroupUpdated?.(updated)
-    const handleGroupDeleted  = ({ group_id })   => { if (group_id === group.id) onGroupRemoved?.(group_id) }
     const handleReadUpdate    = ()               => setReadsRefreshKey(k => k + 1)
 
     const handleMemberRemoved = ({ user_id, name }) => {
@@ -774,15 +778,11 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       setMembers(prev => prev.map(m => m.id === user_id ? { ...m, role } : m))
     }
 
-    socket.on('group:updated',             handleGroupUpdated)
-    socket.on('group:deleted',             handleGroupDeleted)
     socket.on('group:member_removed',      handleMemberRemoved)
     socket.on('group:member_role_changed', handleRoleChanged)
     socket.on('group:read_update',         handleReadUpdate)
 
     return () => {
-      socket.off('group:updated',             handleGroupUpdated)
-      socket.off('group:deleted',             handleGroupDeleted)
       socket.off('group:member_removed',      handleMemberRemoved)
       socket.off('group:member_role_changed', handleRoleChanged)
       socket.off('group:read_update',         handleReadUpdate)
@@ -850,6 +850,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
         currentRoomRef.current = `dm:${dmConvId}`
       }
       setPinnedMsg(null)
+      api.markDmRead(dmConvId).catch(() => {})
       api.getDmMessages(dmConvId)
         .then(({ messages }) => setMessages(formatDmMessages(messages, user.id)))
         .catch(() => setMessages([]))

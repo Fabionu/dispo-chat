@@ -47,7 +47,7 @@ export function registerSocketHandlers(io) {
 
         // Get sender info
         const { rows: users } = await pool.query(
-          'SELECT id, first_name, last_name, username FROM users WHERE id = $1',
+          'SELECT id, first_name, last_name, username, avatar_url FROM users WHERE id = $1',
           [socket.user.id]
         )
         const sender = users[0]
@@ -81,6 +81,7 @@ export function registerSocketHandlers(io) {
           first_name:       sender.first_name,
           last_name:        sender.last_name,
           username:         sender.username,
+          avatar_url:       sender.avatar_url,
         }
 
         // Broadcast to all in room (including sender)
@@ -127,7 +128,7 @@ export function registerSocketHandlers(io) {
         const msg = rows[0]
 
         const { rows: users } = await pool.query(
-          'SELECT id, first_name, last_name, username FROM users WHERE id = $1',
+          'SELECT id, first_name, last_name, username, avatar_url FROM users WHERE id = $1',
           [socket.user.id]
         )
         const sender = users[0]
@@ -141,6 +142,7 @@ export function registerSocketHandlers(io) {
           first_name: sender.first_name,
           last_name:  sender.last_name,
           username:   sender.username,
+          avatar_url: sender.avatar_url,
         }
 
         io.to(`dm:${conv_id}`).emit('message:new', { type: 'dm', message: payload })

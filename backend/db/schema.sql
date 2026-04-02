@@ -105,6 +105,13 @@ CREATE TABLE IF NOT EXISTS dm_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS dm_read_cursors (
+  conv_id     INT NOT NULL REFERENCES dm_conversations(id) ON DELETE CASCADE,
+  user_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  last_read_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (conv_id, user_id)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_group_messages_group  ON group_messages(group_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_user    ON group_members(user_id);

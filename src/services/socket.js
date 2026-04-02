@@ -5,7 +5,7 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin
 let socket = null
 
 export function connectSocket(token) {
-  if (socket?.connected) return socket
+  if (socket) return socket
 
   socket = io(SOCKET_URL, {
     auth: { token },

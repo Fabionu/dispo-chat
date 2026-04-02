@@ -62,6 +62,8 @@ export const api = {
   startDmByCode:      (invite_code)     => request('POST', '/dm', { invite_code }),
   getDmMessages:      (convId)          => request('GET', `/dm/${convId}/messages`),
   sendDmMessage:      (convId, content) => request('POST', `/dm/${convId}/messages`, { content }),
+  markDmRead:         (convId)          => request('POST', `/dm/${convId}/read`),
+  getUnreads:         ()                => request('GET', '/dm/unreads'),
 
   // Users
   searchUsers: (q) => request('GET', `/users/search?q=${encodeURIComponent(q)}`),
