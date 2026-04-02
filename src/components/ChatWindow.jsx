@@ -327,7 +327,7 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
       <div
         className={`relative flex-shrink-0 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}
         style={{
-          marginTop: `${(showName ? 22 : 0) + (msg.replyTo ? 52 : 0) + 6}px`,
+          marginTop: `${(!isOwn && showName ? 22 : 0) + (msg.replyTo ? 52 : 0) + 6}px`,
           alignSelf: 'flex-start',
         }}
       >
