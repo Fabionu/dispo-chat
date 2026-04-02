@@ -3,6 +3,9 @@ import pool from '../db/pool.js'
 
 export function registerSocketHandlers(io) {
 
+  // Track active socket count per user: Map<userId, Set<socketId>>
+  const userSockets = new Map()
+
   // JWT auth middleware
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token
@@ -16,30 +19,33 @@ export function registerSocketHandlers(io) {
   })
 
   io.on('connection', async (socket) => {
-    console.log(`Socket connected: user ${socket.user.id}`)
+    const uid = socket.user.id
+    console.log(`Socket connected: user ${uid}`)
+
+    // ─── Track connection ─────────────────────────────────────────
+    if (!userSockets.has(uid)) userSockets.set(uid, new Set())
+    const isFirstConnection = userSockets.get(uid).size === 0
+    userSockets.get(uid).add(socket.id)
 
     // Join personal room for unread notifications
-    socket.join(`user:${socket.user.id}`)
+    socket.join(`user:${uid}`)
 
-    // ─── Restore online status on connect ────────────────────────
-    // If DB has them as offline (e.g. from a previous disconnect/refresh),
-    // restore to 'available' and let everyone know they're back.
-    try {
-      const { rows } = await pool.query(
-        `SELECT status FROM users WHERE id = $1`, [socket.user.id]
-      )
-      const current = rows[0]?.status
-      if (current === 'offline') {
-        await pool.query(
-          `UPDATE users SET status = 'available' WHERE id = $1`, [socket.user.id]
+    // ─── Restore online status on first connect / reconnect ───────
+    if (isFirstConnection) {
+      try {
+        const { rows } = await pool.query(
+          `SELECT status FROM users WHERE id = $1`, [uid]
         )
-        socket.broadcast.emit('user:status_changed', { user_id: socket.user.id, status: 'available' })
-      } else if (current) {
-        // Broadcast their current status so newly-connected clients have fresh data
-        socket.broadcast.emit('user:status_changed', { user_id: socket.user.id, status: current })
+        const current = rows[0]?.status
+        if (current === 'offline') {
+          await pool.query(`UPDATE users SET status = 'available' WHERE id = $1`, [uid])
+          socket.broadcast.emit('user:status_changed', { user_id: uid, status: 'available' })
+        } else if (current) {
+          socket.broadcast.emit('user:status_changed', { user_id: uid, status: current })
+        }
+      } catch (err) {
+        console.error('Failed to restore status on connect:', err)
       }
-    } catch (err) {
-      console.error('Failed to restore status on connect:', err)
     }
 
     // ─── Group rooms ─────────────────────────────────────────────
@@ -210,25 +216,26 @@ export function registerSocketHandlers(io) {
     })
 
     socket.on('disconnect', async () => {
-      console.log(`Socket disconnected: user ${socket.user.id}`)
-      try {
-        // Check if this user has any OTHER active sockets (e.g. multiple tabs)
-        // fetchSockets() returns all sockets in the current server process
-        const allSockets    = await io.fetchSockets()
-        const stillOnline   = allSockets.some(
-          s => s.user?.id === socket.user.id && s.id !== socket.id
-        )
-        if (!stillOnline) {
-          await pool.query(
-            `UPDATE users SET status = 'offline' WHERE id = $1`, [socket.user.id]
-          )
-          socket.broadcast.emit('user:status_changed', {
-            user_id: socket.user.id,
-            status:  'offline',
-          })
+      const uid = socket.user.id
+      console.log(`Socket disconnected: user ${uid}`)
+
+      // ─── Remove from tracking ─────────────────────────────────
+      const set = userSockets.get(uid)
+      if (set) {
+        set.delete(socket.id)
+        if (set.size === 0) userSockets.delete(uid)
+      }
+
+      // Only mark offline when the LAST socket for this user disconnects
+      const stillOnline = (userSockets.get(uid)?.size ?? 0) > 0
+      if (!stillOnline) {
+        try {
+          await pool.query(`UPDATE users SET status = 'offline' WHERE id = $1`, [uid])
+          socket.broadcast.emit('user:status_changed', { user_id: uid, status: 'offline' })
+          console.log(`User ${uid} marked offline`)
+        } catch (err) {
+          console.error('Failed to set offline on disconnect:', err)
         }
-      } catch (err) {
-        console.error('Failed to set offline on disconnect:', err)
       }
     })
   })
