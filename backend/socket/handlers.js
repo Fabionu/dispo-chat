@@ -5,6 +5,8 @@ export function registerSocketHandlers(io) {
 
   // Track active socket count per user: Map<userId, Set<socketId>>
   const userSockets = new Map()
+  // Grace period timers before marking offline: Map<userId, timeoutId>
+  const offlineTimers = new Map()
 
   // JWT auth middleware
   io.use((socket, next) => {
@@ -30,8 +32,20 @@ export function registerSocketHandlers(io) {
     // Join personal room for unread notifications
     socket.join(`user:${uid}`)
 
-    // ─── Restore online status on first connect / reconnect ───────
-    if (isFirstConnection) {
+    // ─── Cancel pending offline timer (reconnect within grace period) ─
+    if (offlineTimers.has(uid)) {
+      clearTimeout(offlineTimers.get(uid))
+      offlineTimers.delete(uid)
+      // Announce still-online status to others
+      try {
+        const { rows } = await pool.query(`SELECT status FROM users WHERE id = $1`, [uid])
+        const current = rows[0]?.status
+        if (current && current !== 'offline') {
+          socket.broadcast.emit('user:status_changed', { user_id: uid, status: current })
+        }
+      } catch {}
+    } else if (isFirstConnection) {
+      // ─── Fresh connect: restore status if was offline ─────────────
       try {
         const { rows } = await pool.query(
           `SELECT status FROM users WHERE id = $1`, [uid]
@@ -228,15 +242,22 @@ export function registerSocketHandlers(io) {
       }
 
       // Only mark offline when the LAST socket for this user disconnects
+      // Use a 4s grace period to avoid flicker on page refresh / reconnect
       const stillOnline = (userSockets.get(uid)?.size ?? 0) > 0
       if (!stillOnline) {
-        try {
-          await pool.query(`UPDATE users SET status = 'offline' WHERE id = $1`, [uid])
-          socket.broadcast.emit('user:status_changed', { user_id: uid, status: 'offline' })
-          console.log(`User ${uid} marked offline`)
-        } catch (err) {
-          console.error('Failed to set offline on disconnect:', err)
-        }
+        const timer = setTimeout(async () => {
+          offlineTimers.delete(uid)
+          // Double-check no new socket connected during grace period
+          if ((userSockets.get(uid)?.size ?? 0) > 0) return
+          try {
+            await pool.query(`UPDATE users SET status = 'offline' WHERE id = $1`, [uid])
+            socket.broadcast.emit('user:status_changed', { user_id: uid, status: 'offline' })
+            console.log(`User ${uid} marked offline`)
+          } catch (err) {
+            console.error('Failed to set offline on disconnect:', err)
+          }
+        }, 4000)
+        offlineTimers.set(uid, timer)
       }
     })
   })

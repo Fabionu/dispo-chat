@@ -147,8 +147,8 @@ function GroupItem({ group, active, unread, muted, pinned, compact, typingLabel,
 
         {/* Right column */}
         {compact ? (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {pinned && <IconPin size={9} />}
+          <div className="flex items-center gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
+            {pinned && <span className="text-white/40"><IconPin size={9} /></span>}
             {unread > 0 && <UnreadBadge count={unread} />}
           </div>
         ) : (
@@ -255,7 +255,7 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, typi
 
         {/* Right column */}
         {compact ? (
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
             {pinned && <span className="text-white/40"><IconPin size={9} /></span>}
             {unread > 0 && <UnreadBadge count={unread} />}
           </div>
