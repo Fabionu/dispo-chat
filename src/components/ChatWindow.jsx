@@ -216,6 +216,8 @@ function SystemMessage({ content }) {
 
 function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onReply, onEdit, onPin, pinnedMsgId, isGroup, highlighted, onRef, onScrollTo, highlight, onAvatarClick }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [openUpward, setOpenUpward] = useState(false)
+  const chevronRef = useRef(null)
 
   if (msg.type === 'system') return <SystemMessage content={msg.content} />
 
@@ -321,10 +323,19 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
         )}
       </div>
 
-      {/* Chevron trigger + dropdown — always after content in DOM; flex-row-reverse puts it on the left for own msgs */}
-      <div className={`relative self-start mt-1.5 flex-shrink-0 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}>
+      {/* Chevron trigger + dropdown */}
+      <div
+        className={`relative flex-shrink-0 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}
+        style={{ marginTop: showName ? '22px' : '6px', alignSelf: 'flex-start' }}
+      >
         <button
-          onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
+          ref={chevronRef}
+          onClick={(e) => {
+            e.stopPropagation()
+            const rect = chevronRef.current?.getBoundingClientRect()
+            setOpenUpward(rect ? rect.bottom > window.innerHeight - 160 : false)
+            setMenuOpen(v => !v)
+          }}
           onDoubleClick={(e) => e.stopPropagation()}
           className={`w-6 h-6 flex items-center justify-center rounded-lg transition
             ${menuOpen
@@ -338,7 +349,7 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
           <>
             <div className="fixed inset-0 z-[49]" onClick={() => setMenuOpen(false)} />
             <div
-              className={`absolute top-full mt-1 z-50 border rounded-xl overflow-hidden shadow-xl min-w-[130px] ${isOwn ? 'right-0' : 'left-0'}`}
+              className={`absolute z-50 border rounded-xl overflow-hidden shadow-xl min-w-[130px] ${isOwn ? 'right-0' : 'left-0'} ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}
               style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}
             >
               {menuItems.map(item => (
