@@ -287,8 +287,8 @@ function SettingsContent({ user, onClose, onLogout }) {
         {/* Header */}
         <div className="px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: '1px solid var(--c-border)' }}>
           <span className="text-sm font-semibold text-white/70 tracking-wide">Settings</span>
-          <button onClick={onClose} className="text-white/20 hover:text-white/60 transition">
-            <IconX size={14} />
+          <button onClick={onClose} className="text-white/40 hover:text-white/80 transition">
+            <IconX size={15} stroke={2.2} />
           </button>
         </div>
 
@@ -370,9 +370,19 @@ export default function SettingsModal({ user, onClose, onLogout }) {
 
 // ─── Inline sidebar panel ─────────────────────────────────────
 export function SettingsPanel({ user, onClose, onLogout }) {
+  const [closing, setClosing] = useState(false)
+
+  const handleClose = () => {
+    setClosing(true)
+    setTimeout(onClose, 140)
+  }
+
   return (
-    <div className="absolute inset-0 z-50 flex flex-col" style={{ background: 'var(--c-sidebar)' }}>
-      <SettingsContent user={user} onClose={onClose} onLogout={onLogout} />
+    <div
+      className={`absolute inset-0 z-50 flex flex-col ${closing ? 'panel-out' : 'panel-in'}`}
+      style={{ background: 'var(--c-sidebar)' }}
+    >
+      <SettingsContent user={user} onClose={handleClose} onLogout={onLogout} />
     </div>
   )
 }
@@ -506,14 +516,14 @@ function AppearanceTab({ appearance, onUpdate }) {
       {/* Accent */}
       <div>
         <div className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2.5">Accent</div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {Object.entries(ACCENTS).map(([key, a]) => {
             const active = appearance.accent === key
             return (
               <button
                 key={key}
                 onClick={() => onUpdate({ accent: active && key !== 'indigo' ? 'indigo' : key })}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs transition
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs transition
                   ${active
                     ? 'ring-2 ring-[var(--c-accent)] bg-white/[0.05]'
                     : 'ring-1 ring-white/[0.07] hover:ring-white/[0.15]'}`}

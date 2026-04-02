@@ -59,6 +59,17 @@ input:-webkit-autofill:focus {
   transform-origin: top;
 }
 
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+@keyframes panel-out {
+  from { opacity: 1; transform: translateX(0);     }
+  to   { opacity: 0; transform: translateX(-10px); }
+}
+.panel-in  { animation: panel-in  0.18s ease forwards; }
+.panel-out { animation: panel-out 0.15s ease forwards; }
+
 /* ─── Light mode ────────────────────────────────────────────── */
 .theme-light {
   color-scheme: light;
