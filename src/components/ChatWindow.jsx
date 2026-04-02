@@ -1290,13 +1290,13 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
 
       {/* Typing indicator */}
       {typers.length > 0 && (
-        <div className="px-7 pb-1 flex items-center gap-2">
-          <div className="flex gap-[3px] items-center">
-            <span className="w-1 h-1 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-1 h-1 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-1 h-1 rounded-full bg-white/30 animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="px-7 pb-2 flex items-center gap-2.5">
+          <div className="flex gap-[4px] items-center">
+            <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
-          <span className="text-[11px] text-white/25">
+          <span className="text-xs text-white/45">
             {typers.length === 1
               ? `${typers[0].username} is typing...`
               : `${typers.map(t => t.username).join(', ')} are typing...`}
