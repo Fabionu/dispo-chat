@@ -184,8 +184,21 @@ export function registerSocketHandlers(io) {
       socket.to(room).emit('typing:stop', { user_id: socket.user.id, room })
     })
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       console.log(`Socket disconnected: user ${socket.user.id}`)
+      try {
+        // Mark offline in DB and notify all other connected clients
+        await pool.query(
+          `UPDATE users SET status = 'offline' WHERE id = $1`,
+          [socket.user.id]
+        )
+        socket.broadcast.emit('user:status_changed', {
+          user_id: socket.user.id,
+          status:  'offline',
+        })
+      } catch (err) {
+        console.error('Failed to set offline on disconnect:', err)
+      }
     })
   })
 }

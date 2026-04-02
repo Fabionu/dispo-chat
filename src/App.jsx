@@ -179,10 +179,8 @@ export default function App() {
   }
 
   const handleLogout = async () => {
-    try {
-      await api.updateProfile({ status: 'offline' })
-      getSocket()?.emit('user:status_update', { status: 'offline' })
-    } catch {}
+    try { await api.updateProfile({ status: 'offline' }) } catch {}
+    // Disconnect socket — the server's disconnect handler will broadcast offline to everyone
     disconnectSocket()
     localStorage.removeItem('dc_token')
     sessionStorage.removeItem('dc_token')
