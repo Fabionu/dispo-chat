@@ -93,26 +93,28 @@ input:-webkit-autofill:focus {
 .theme-light .text-white\/88 { color: rgba(12,12,22, 0.88) !important; }
 .theme-light .text-white\/85 { color: rgba(12,12,22, 0.85) !important; }
 .theme-light .text-white\/80 { color: rgba(12,12,22, 0.82) !important; }
+.theme-light .text-white\/75 { color: rgba(12,12,22, 0.78) !important; }
 .theme-light .text-white\/70 { color: rgba(12,12,22, 0.75) !important; }
-.theme-light .text-white\/65 { color: rgba(12,12,22, 0.70) !important; }
-.theme-light .text-white\/60 { color: rgba(12,12,22, 0.65) !important; }
-.theme-light .text-white\/55 { color: rgba(12,12,22, 0.60) !important; }
+.theme-light .text-white\/65 { color: rgba(12,12,22, 0.72) !important; }
+.theme-light .text-white\/60 { color: rgba(12,12,22, 0.68) !important; }
+.theme-light .text-white\/55 { color: rgba(12,12,22, 0.64) !important; }
 .theme-light .text-white\/50 { color: rgba(12,12,22, 0.60) !important; }
-.theme-light .text-white\/45 { color: rgba(12,12,22, 0.55) !important; }
+.theme-light .text-white\/45 { color: rgba(12,12,22, 0.56) !important; }
 .theme-light .text-white\/40 { color: rgba(12,12,22, 0.52) !important; }
 .theme-light .text-white\/35 { color: rgba(12,12,22, 0.48) !important; }
-.theme-light .text-white\/30 { color: rgba(12,12,22, 0.45) !important; }
-.theme-light .text-white\/25 { color: rgba(12,12,22, 0.40) !important; }
-.theme-light .text-white\/20 { color: rgba(12,12,22, 0.35) !important; }
-.theme-light .text-white\/15 { color: rgba(12,12,22, 0.30) !important; }
-.theme-light .text-white\/10 { color: rgba(12,12,22, 0.25) !important; }
+.theme-light .text-white\/30 { color: rgba(12,12,22, 0.48) !important; }
+.theme-light .text-white\/25 { color: rgba(12,12,22, 0.45) !important; }
+.theme-light .text-white\/20 { color: rgba(12,12,22, 0.42) !important; }
+.theme-light .text-white\/15 { color: rgba(12,12,22, 0.38) !important; }
+.theme-light .text-white\/10 { color: rgba(12,12,22, 0.32) !important; }
 .theme-light .text-white     { color: rgba(12,12,22, 0.92) !important; }
 
 /* Light mode: placeholder-white/* → dark */
-.theme-light .placeholder-white\/20::placeholder { color: rgba(12,12,22, 0.35) !important; }
-.theme-light .placeholder-white\/15::placeholder { color: rgba(12,12,22, 0.30) !important; }
-.theme-light .placeholder-white\/25::placeholder { color: rgba(12,12,22, 0.40) !important; }
-.theme-light .placeholder-white\/30::placeholder { color: rgba(12,12,22, 0.45) !important; }
+.theme-light .placeholder-white\/40::placeholder { color: rgba(12,12,22, 0.50) !important; }
+.theme-light .placeholder-white\/30::placeholder { color: rgba(12,12,22, 0.48) !important; }
+.theme-light .placeholder-white\/25::placeholder { color: rgba(12,12,22, 0.45) !important; }
+.theme-light .placeholder-white\/20::placeholder { color: rgba(12,12,22, 0.42) !important; }
+.theme-light .placeholder-white\/15::placeholder { color: rgba(12,12,22, 0.38) !important; }
 
 /* Light mode: bg-white/* → dark equivalent */
 .theme-light .bg-white\/\[0\.02\] { background-color: rgba(0,0,10, 0.02) !important; }

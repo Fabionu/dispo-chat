@@ -103,13 +103,13 @@ function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen,
       >
         {compact ? (
           /* Compact: small icon only */
-          <span className={`flex-shrink-0 ${active ? 'text-[var(--c-accent)]' : 'text-white/25'}`}>
+          <span className={`flex-shrink-0 ${active ? 'text-[var(--c-accent)]' : 'text-white/50'}`}>
             <IconGroup size={13} />
           </span>
         ) : (
           /* Normal/Comfortable: initials square */
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-semibold flex-shrink-0 transition-all
-            ${active ? 'bg-[var(--c-accent)]/20 text-[var(--c-accent)]/90' : 'bg-white/[0.05] text-white/30'}`}>
+            ${active ? 'bg-[var(--c-accent)]/20 text-[var(--c-accent)]/90' : 'bg-white/[0.07] text-white/55'}`}>
             {initials}
           </div>
         )}
@@ -117,11 +117,11 @@ function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen,
         <div className="flex-1 min-w-0">
           <span className={`truncate block font-medium
             ${compact ? 'text-xs' : 'text-sm'}
-            ${unread ? 'text-white' : 'text-white/90'}`}>
+            ${unread ? 'text-white' : 'text-white/95'}`}>
             {group.name}
           </span>
           {!compact && (
-            <div className={`text-[11px] truncate mt-0.5 ${unread ? 'text-white/50' : 'text-white/25'}`}>
+            <div className={`text-[11px] truncate mt-0.5 ${unread ? 'text-white/65' : 'text-white/45'}`}>
               {group.last_message || 'No messages yet'}
             </div>
           )}
@@ -135,8 +135,8 @@ function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen,
           </div>
         ) : (
           <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
-            {pinned && <span className="text-white/20"><IconPin size={9} /></span>}
-            {time && <span className="text-[10px] text-white/20 whitespace-nowrap">{time}</span>}
+            {pinned && <span className="text-white/40"><IconPin size={9} /></span>}
+            {time && <span className="text-[10px] text-white/40 whitespace-nowrap">{time}</span>}
             <UnreadBadge count={unread} />
           </div>
         )}
@@ -194,7 +194,7 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
         {compact ? (
           /* Compact: person icon + status dot */
           <span className="relative flex-shrink-0 flex items-center justify-center">
-            <span className={active ? 'text-[var(--c-accent)]' : 'text-white/25'}>
+            <span className={active ? 'text-[var(--c-accent)]' : 'text-white/50'}>
               <IconPerson size={13} />
             </span>
             <span
@@ -205,7 +205,7 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
         ) : (
           /* Normal/Comfortable: avatar + status dot */
           <div className="relative flex-shrink-0">
-            <div className="w-9 h-9 rounded-full bg-white/[0.05] flex items-center justify-center text-[11px] font-medium text-white/30 overflow-hidden">
+            <div className="w-9 h-9 rounded-full bg-white/[0.07] flex items-center justify-center text-[11px] font-medium text-white/55 overflow-hidden">
               {conv.avatar_url
                 ? <img src={conv.avatar_url} alt="" className="w-full h-full object-cover" />
                 : initials
@@ -221,11 +221,11 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
         <div className="flex-1 min-w-0">
           <span className={`truncate block font-medium
             ${compact ? 'text-xs' : 'text-sm'}
-            ${unread ? 'text-white' : 'text-white/90'}`}>
+            ${unread ? 'text-white' : 'text-white/95'}`}>
             {conv.first_name} {conv.last_name}
           </span>
           {!compact && (
-            <div className={`text-xs truncate mt-0.5 ${unread ? 'text-white/50' : 'text-white/30'}`}>
+            <div className={`text-xs truncate mt-0.5 ${unread ? 'text-white/65' : 'text-white/50'}`}>
               {conv.last_message || `@${conv.username}`}
             </div>
           )}
@@ -234,13 +234,13 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
         {/* Right column */}
         {compact ? (
           <div className="flex items-center gap-1 flex-shrink-0">
-            {pinned && <span className="text-white/20"><IconPin size={9} /></span>}
+            {pinned && <span className="text-white/40"><IconPin size={9} /></span>}
             {unread > 0 && <UnreadBadge count={unread} />}
           </div>
         ) : (
           <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
-            {pinned && <span className="text-white/20"><IconPin size={9} /></span>}
-            {time && <span className="text-[10px] text-white/20 whitespace-nowrap">{time}</span>}
+            {pinned && <span className="text-white/40"><IconPin size={9} /></span>}
+            {time && <span className="text-[10px] text-white/45 whitespace-nowrap">{time}</span>}
             <UnreadBadge count={unread} />
           </div>
         )}
@@ -254,7 +254,7 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
         <button
           onClick={(e) => { e.stopPropagation(); optionsOpen ? onCloseOptions() : onOpenOptions(convKey) }}
           className={`w-6 h-6 flex items-center justify-center rounded-md transition-all
-            text-white/30 hover:text-white/70 hover:bg-white/[0.12]
+            text-white/50 hover:text-white/80 hover:bg-white/[0.12]
             ${optionsOpen ? 'opacity-100' : 'opacity-0 group-hover/item:opacity-100'}`}
         >
           <IconMoreVertical size={13} />
@@ -414,17 +414,17 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
       {/* Header */}
       <div className="px-4 pt-5 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 text-white/30">
+          <div className="w-6 h-6 flex items-center justify-center flex-shrink-0 text-white/50">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
           </div>
-          <span className="text-sm font-semibold text-white/50 tracking-tight">Dispo Chat</span>
+          <span className="text-sm font-semibold text-white/70 tracking-tight">Dispo Chat</span>
         </div>
         <div className="relative">
           <button
             onClick={() => setShowHeaderMenu(v => !v)}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-white/40 hover:text-white/70 hover:bg-white/[0.09] transition"
+            className="w-6 h-6 flex items-center justify-center rounded-md text-white/55 hover:text-white/80 hover:bg-white/[0.09] transition"
           >
             <IconMoreVertical size={15} />
           </button>
@@ -453,7 +453,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
       {/* Search */}
       <div className="px-4 pb-3">
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/15 pointer-events-none">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35 pointer-events-none">
             <IconSearch size={11} />
           </span>
           <input
@@ -461,7 +461,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white/[0.03] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white/60 placeholder-white/15 outline-none focus:bg-white/[0.05] transition-colors"
+            className="w-full bg-white/[0.05] rounded-lg pl-7 pr-3 py-1.5 text-xs text-white/75 placeholder-white/30 outline-none focus:bg-white/[0.08] transition-colors"
           />
         </div>
       </div>
@@ -472,17 +472,17 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
         {/* Groups section */}
         <div className="mb-1">
           <div className="flex items-center justify-between px-3 mb-1.5">
-            <p className="text-[10px] text-white/40 uppercase tracking-widest">Groups</p>
+            <p className="text-[10px] text-white/60 uppercase tracking-widest font-semibold">Groups</p>
             <button
               onClick={() => setShowCreateGroup(true)}
-              className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white/70 hover:bg-white/[0.09] transition"
+              className="w-5 h-5 flex items-center justify-center rounded text-white/55 hover:text-white/80 hover:bg-white/[0.09] transition"
               title="Create group"
             >
               <IconPlus size={12} stroke={2} />
             </button>
           </div>
           {filteredGroups.length === 0 ? (
-            <p className="text-xs text-white/30 px-3 py-2">No groups</p>
+            <p className="text-xs text-white/50 px-3 py-2">No groups</p>
           ) : (
             filteredGroups.map(group => {
               const convKey = `group:${group.id}`
@@ -514,10 +514,10 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
         {(filteredDms.length > 0 || search === '') && (
           <div className="mt-3">
             <div className="flex items-center justify-between px-3 mb-1.5">
-              <p className="text-[10px] text-white/40 uppercase tracking-widest">Direct Messages</p>
+              <p className="text-[10px] text-white/60 uppercase tracking-widest font-semibold">Direct Messages</p>
               <button
                 onClick={() => setShowNewDm(true)}
-                className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white/70 hover:bg-white/[0.09] transition"
+                className="w-5 h-5 flex items-center justify-center rounded text-white/55 hover:text-white/80 hover:bg-white/[0.09] transition"
                 title="New message"
               >
                 <IconPlus size={12} stroke={2} />
@@ -536,7 +536,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
                   <line x1="6" y1="15" x2="18" y2="15" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
                   <line x1="6" y1="19" x2="14" y2="19" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.6"/>
                 </svg>
-                <p className="text-[11px] text-white/20 text-center leading-relaxed">
+                <p className="text-[11px] text-white/40 text-center leading-relaxed">
                   No direct messages yet.<br />Use + to start one.
                 </p>
               </div>
@@ -578,7 +578,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
         >
           {/* Avatar + status */}
           <div className="relative flex-shrink-0">
-            <div className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-sm font-medium text-white/35 bg-white/[0.06]">
+            <div className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-sm font-medium text-white/60 bg-white/[0.08]">
               {user.avatar_url
                 ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
                 : initials
@@ -595,8 +595,8 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
 
           {/* Name + status */}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-white/90 truncate leading-none">{user.first_name} {user.last_name}</div>
-            <div className="text-xs text-white/35 mt-1 capitalize leading-none">
+            <div className="text-sm font-semibold text-white/95 truncate leading-none">{user.first_name} {user.last_name}</div>
+            <div className="text-xs text-white/55 mt-1 capitalize leading-none">
               {STATUSES.find(s => s.value === (user.status || 'available'))?.label ?? 'Available'}
             </div>
           </div>
