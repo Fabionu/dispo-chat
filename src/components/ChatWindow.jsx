@@ -124,39 +124,83 @@ function LinkPreview({ url }) {
 
 // ─── Profile popup ────────────────────────────────────────────
 function ProfilePopup({ profile, onClose }) {
+  const [imgFull, setImgFull] = useState(false)
+
   return (
     <>
-      <div className="fixed inset-0 z-[80]" onClick={onClose} />
+      {/* Backdrop */}
       <div
-        className="fixed z-[90] rounded-2xl shadow-2xl overflow-hidden"
+        className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div
+        className="fixed z-[90] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-3xl shadow-2xl overflow-hidden panel-in"
         style={{
           background: 'var(--c-surface)',
-          border: '1px solid var(--c-border-md)',
-          width: 200,
-          top:  profile.y,
-          left: profile.x,
+          border: '1px solid var(--c-border-lg)',
+          width: 320,
         }}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="px-4 py-4 flex flex-col items-center gap-2.5">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold overflow-hidden flex-shrink-0"
-            style={{ background: 'var(--c-surface2)', color: 'rgba(255,255,255,0.35)' }}>
-            {profile.avatar_url
-              ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-              : profile.initials
-            }
-          </div>
-          <div className="text-center">
-            <div className="text-sm font-semibold text-white/88">{profile.name}</div>
-            {profile.username && <div className="text-xs text-white/35 mt-0.5">@{profile.username}</div>}
-            {profile.statusLabel && (
-              <div className="text-[11px] mt-1 flex items-center justify-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: profile.statusColor }} />
-                <span className="text-white/40">{profile.statusLabel}</span>
-              </div>
-            )}
+        {/* Banner / avatar area */}
+        <div className="relative h-24 flex items-end justify-center pb-0" style={{ background: 'var(--c-surface2)' }}>
+          <div
+            className="absolute bottom-0 translate-y-1/2 cursor-pointer"
+            onClick={() => profile.avatar_url && setImgFull(true)}
+          >
+            <div
+              className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-3xl font-bold ring-4"
+              style={{
+                background: 'var(--c-surface3)',
+                color: 'rgba(255,255,255,0.3)',
+                ringColor: 'var(--c-surface)',
+                boxShadow: '0 0 0 4px var(--c-surface)',
+              }}
+            >
+              {profile.avatar_url
+                ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                : profile.initials
+              }
+            </div>
           </div>
         </div>
+
+        {/* Info */}
+        <div className="pt-16 pb-6 px-6 text-center flex flex-col items-center gap-1">
+          <div className="text-lg font-bold text-white/92 leading-tight">{profile.name}</div>
+          {profile.username && (
+            <div className="text-sm text-white/40">@{profile.username}</div>
+          )}
+          {profile.statusLabel && (
+            <div className="mt-1 flex items-center justify-center gap-1.5 text-sm">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: profile.statusColor }} />
+              <span className="text-white/50">{profile.statusLabel}</span>
+            </div>
+          )}
+          {profile.unique_code && (
+            <div className="mt-3 px-3 py-1.5 rounded-xl text-xs text-white/30 font-mono tracking-widest" style={{ background: 'var(--c-surface2)' }}>
+              #{profile.unique_code}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Full-size image overlay */}
+      {imgFull && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center backdrop-blur-sm"
+          onClick={() => setImgFull(false)}
+        >
+          <img
+            src={profile.avatar_url}
+            alt=""
+            className="max-w-[80vw] max-h-[80vh] rounded-2xl shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   )
 }
@@ -511,7 +555,7 @@ function MembersPanel({ members, isAdmin, currentUserId, userStatuses, onAddMemb
   )
 }
 
-function GroupHeader({ group, memberCount, onToggleMembers, onSettings, onSearch }) {
+function GroupHeader({ group, memberCount, isAdmin, onToggleMembers, onAddMember, onSettings, onSearch }) {
   const initials = group.name.slice(0, 2).toUpperCase()
 
   const subtitle = [
@@ -536,6 +580,13 @@ function GroupHeader({ group, memberCount, onToggleMembers, onSettings, onSearch
         </div>
       </div>
       <div className="flex items-center gap-1">
+        {isAdmin && (
+          <button onClick={onAddMember}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/55 hover:text-white/85 hover:bg-white/[0.10] transition"
+            title="Add member">
+            <IconUserPlus size={16} stroke={2} />
+          </button>
+        )}
         <button onClick={onSearch}
           className="w-8 h-8 flex items-center justify-center rounded-lg text-white/55 hover:text-white/85 hover:bg-white/[0.10] transition"
           title="Search in conversation">
@@ -934,7 +985,6 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
 
   // ─── Profile popup ────────────────────────────────────────────
   const handleAvatarClick = useCallback((e, msg) => {
-    const rect = e.currentTarget.getBoundingClientRect()
     setProfileUser({
       name:        msg.senderName,
       initials:    msg.avatar,
@@ -942,14 +992,12 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       username:    null,
       statusLabel: null,
       statusColor: null,
-      x: Math.min(rect.right + 8, window.innerWidth - 220),
-      y: Math.min(rect.top,       window.innerHeight - 160),
+      unique_code: null,
     })
   }, [])
 
-  const handleDmAvatarClick = useCallback((e) => {
+  const handleDmAvatarClick = useCallback(() => {
     if (!otherUser) return
-    const rect = e.currentTarget.getBoundingClientRect()
     const statusCfg = STATUSES.find(s => s.value === (userStatuses?.[otherUser.user_id ?? otherUser.id] ?? otherUser.status ?? 'available')) ?? STATUSES[0]
     setProfileUser({
       name:        `${otherUser.first_name} ${otherUser.last_name}`,
@@ -958,8 +1006,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       username:    otherUser.username,
       statusLabel: statusCfg.label,
       statusColor: statusCfg.color,
-      x: Math.min(rect.right + 8, window.innerWidth - 220),
-      y: Math.min(rect.top,       window.innerHeight - 180),
+      unique_code: otherUser.unique_code || null,
     })
   }, [otherUser, userStatuses])
 
@@ -1110,7 +1157,9 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
         ? <GroupHeader
             group={group}
             memberCount={members.length || null}
+            isAdmin={isAdmin}
             onToggleMembers={() => setShowMembers(v => !v)}
+            onAddMember={() => setShowAddMember(true)}
             onSettings={() => setShowSettings(true)}
             onSearch={() => setSearchOpen(v => !v)}
           />
@@ -1282,7 +1331,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
 
       {/* Input */}
       <div className="px-5 pb-5 pt-2">
-        <div className="flex items-end gap-2 bg-white/[0.03] border border-white/[0.06] rounded-2xl px-4 py-2.5 focus-within:border-white/10 transition-all">
+        <div className="flex items-end gap-2 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 focus-within:border-white/20 transition-all">
           <textarea
             ref={textareaRef}
             value={input}
@@ -1290,7 +1339,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
             onKeyDown={handleKey}
             placeholder={editingMsg ? 'Edit message...' : 'Message...'}
             rows={1}
-            className="flex-1 bg-transparent text-sm text-white/90 placeholder-white/20 focus:outline-none resize-none py-1 min-h-[22px] max-h-[100px]"
+            className="flex-1 bg-transparent text-sm text-white/90 placeholder-white/40 focus:outline-none resize-none py-1 min-h-[22px] max-h-[100px]"
           />
           <button
             onClick={handleSend}

@@ -149,13 +149,13 @@ export default function App() {
     connectSocket(token)
     api.me()
       .then(async ({ user: me }) => {
-        const [{ groups }, { unreads }] = await Promise.all([
+        const [{ groups }, unreadResult] = await Promise.all([
           api.getGroups(),
-          api.getUnreads(),
+          api.getUnreads().catch(() => ({ unreads: {} })),
         ])
         setUser(me)
         setGroups(groups)
-        setUnreads(unreads)
+        setUnreads(unreadResult.unreads)
       })
       .catch(() => {
         localStorage.removeItem('dc_token')
@@ -170,15 +170,19 @@ export default function App() {
     else sessionStorage.setItem('dc_token', token)
     connectSocket(token)
     setUser(user)
-    const [{ groups }, { unreads }] = await Promise.all([
+    const [{ groups }, unreadResult] = await Promise.all([
       api.getGroups(),
-      api.getUnreads(),
+      api.getUnreads().catch(() => ({ unreads: {} })),
     ])
     setGroups(groups)
-    setUnreads(unreads)
+    setUnreads(unreadResult.unreads)
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await api.updateProfile({ status: 'offline' })
+      getSocket()?.emit('user:status_update', { status: 'offline' })
+    } catch {}
     disconnectSocket()
     localStorage.removeItem('dc_token')
     sessionStorage.removeItem('dc_token')

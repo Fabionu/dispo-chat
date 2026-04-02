@@ -98,18 +98,18 @@ function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen,
         onClick={onClick}
         className={`w-full text-left px-3 rounded-xl transition-all flex items-center
           ${compact ? 'gap-2' : 'gap-3'}
-          ${active ? 'bg-white/[0.12]' : 'hover:bg-white/[0.09]'}`}
+          ${active ? 'bg-[var(--c-accent-muted)] border border-[var(--c-accent)]/25' : 'hover:bg-white/[0.09] border border-transparent'}`}
         style={{ paddingTop: 'var(--c-row-py)', paddingBottom: 'var(--c-row-py)' }}
       >
         {compact ? (
           /* Compact: small icon only */
-          <span className={`flex-shrink-0 ${active ? 'text-white/55' : 'text-white/25'}`}>
+          <span className={`flex-shrink-0 ${active ? 'text-[var(--c-accent)]' : 'text-white/25'}`}>
             <IconGroup size={13} />
           </span>
         ) : (
           /* Normal/Comfortable: initials square */
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-[11px] font-semibold flex-shrink-0 transition-all
-            ${active ? 'bg-white/[0.12] text-white/70' : 'bg-white/[0.05] text-white/30'}`}>
+            ${active ? 'bg-[var(--c-accent)]/20 text-[var(--c-accent)]/90' : 'bg-white/[0.05] text-white/30'}`}>
             {initials}
           </div>
         )}
@@ -188,13 +188,13 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
         onClick={onClick}
         className={`w-full text-left px-3 rounded-xl transition-all flex items-center
           ${compact ? 'gap-2' : 'gap-3'}
-          ${active ? 'bg-white/[0.12]' : 'hover:bg-white/[0.09]'}`}
+          ${active ? 'bg-[var(--c-accent-muted)] border border-[var(--c-accent)]/25' : 'hover:bg-white/[0.09] border border-transparent'}`}
         style={{ paddingTop: 'var(--c-row-py)', paddingBottom: 'var(--c-row-py)' }}
       >
         {compact ? (
           /* Compact: person icon + status dot */
           <span className="relative flex-shrink-0 flex items-center justify-center">
-            <span className={active ? 'text-white/55' : 'text-white/25'}>
+            <span className={active ? 'text-[var(--c-accent)]' : 'text-white/25'}>
               <IconPerson size={13} />
             </span>
             <span
@@ -471,7 +471,16 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
 
         {/* Groups section */}
         <div className="mb-1">
-          <p className="text-[10px] text-white/40 uppercase tracking-widest px-3 mb-1.5">Groups</p>
+          <div className="flex items-center justify-between px-3 mb-1.5">
+            <p className="text-[10px] text-white/40 uppercase tracking-widest">Groups</p>
+            <button
+              onClick={() => setShowCreateGroup(true)}
+              className="w-5 h-5 flex items-center justify-center rounded text-white/40 hover:text-white/70 hover:bg-white/[0.09] transition"
+              title="Create group"
+            >
+              <IconPlus size={12} stroke={2} />
+            </button>
+          </div>
           {filteredGroups.length === 0 ? (
             <p className="text-xs text-white/30 px-3 py-2">No groups</p>
           ) : (
@@ -592,7 +601,6 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
             </div>
           </div>
 
-          <IconSettings size={16} className="flex-shrink-0 text-white/20 group-hover:text-white/40 transition" />
         </button>
       </div>
 
