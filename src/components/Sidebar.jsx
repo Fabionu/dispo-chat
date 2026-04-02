@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { IconSearch, IconPlus, IconMoreVertical, IconBellOff, IconBell, IconCheckAll, IconSettings } from './Icons.jsx'
 import { api } from '../services/api.js'
 import { getSocket } from '../services/socket.js'
@@ -85,7 +85,21 @@ function ItemOptions({ convKey, unread, muted, pinned, onToggleMute, onMarkRead,
   )
 }
 
-function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-[3px]">
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          className="w-1 h-1 rounded-full bg-current opacity-60"
+          style={{ animation: `typing-dot 1.2s ease-in-out ${i * 0.2}s infinite` }}
+        />
+      ))}
+    </span>
+  )
+}
+
+function GroupItem({ group, active, unread, muted, pinned, compact, typingLabel, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
   const initials = group.name.slice(0, 2).toUpperCase()
   const time = group.last_message_at
     ? new Date(group.last_message_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
@@ -121,8 +135,12 @@ function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen,
             {group.name}
           </span>
           {!compact && (
-            <div className={`text-[11px] truncate mt-0.5 ${unread ? 'text-white/65' : 'text-white/45'}`}>
-              {group.last_message || 'No messages yet'}
+            <div className={`text-[11px] truncate mt-0.5 flex items-center gap-1.5
+              ${typingLabel ? 'text-[var(--c-accent)]' : unread ? 'text-white/65' : 'text-white/45'}`}>
+              {typingLabel
+                ? <><TypingDots /><span className="truncate">{typingLabel}</span></>
+                : (group.last_message || 'No messages yet')
+              }
             </div>
           )}
         </div>
@@ -136,7 +154,7 @@ function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen,
         ) : (
           <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
             {pinned && <span className="text-white/40"><IconPin size={9} /></span>}
-            {time && <span className="text-[10px] text-white/40 whitespace-nowrap">{time}</span>}
+            {!typingLabel && time && <span className="text-[10px] text-white/40 whitespace-nowrap">{time}</span>}
             <UnreadBadge count={unread} />
           </div>
         )}
@@ -173,7 +191,7 @@ function GroupItem({ group, active, unread, muted, pinned, compact, optionsOpen,
   )
 }
 
-function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
+function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, typingLabel, optionsOpen, onOpenOptions, onCloseOptions, onToggleMute, onMarkRead, onMarkUnread, onTogglePin, onClick }) {
   const initials = `${conv.first_name?.[0] ?? ''}${conv.last_name?.[0] ?? ''}`.toUpperCase()
   const time = conv.last_message_at
     ? new Date(conv.last_message_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
@@ -225,8 +243,12 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
             {conv.first_name} {conv.last_name}
           </span>
           {!compact && (
-            <div className={`text-xs truncate mt-0.5 ${unread ? 'text-white/65' : 'text-white/50'}`}>
-              {conv.last_message || `@${conv.username}`}
+            <div className={`text-xs truncate mt-0.5 flex items-center gap-1.5
+              ${typingLabel ? 'text-[var(--c-accent)]' : unread ? 'text-white/65' : 'text-white/50'}`}>
+              {typingLabel
+                ? <><TypingDots /><span className="truncate">typing...</span></>
+                : (conv.last_message || `@${conv.username}`)
+              }
             </div>
           )}
         </div>
@@ -240,7 +262,7 @@ function DmItem({ conv, active, unread, muted, pinned, compact, userStatus, opti
         ) : (
           <div className="flex flex-col items-end gap-1 flex-shrink-0 group-hover/item:opacity-0 transition-opacity duration-150">
             {pinned && <span className="text-white/40"><IconPin size={9} /></span>}
-            {time && <span className="text-[10px] text-white/45 whitespace-nowrap">{time}</span>}
+            {!typingLabel && time && <span className="text-[10px] text-white/45 whitespace-nowrap">{time}</span>}
             <UnreadBadge count={unread} />
           </div>
         )}
@@ -288,6 +310,8 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
   const [showHeaderMenu, setShowHeaderMenu]   = useState(false)
   const [optionsFor, setOptionsFor]       = useState(null)
   const [showNewDm, setShowNewDm]         = useState(false)
+  const [typingMap, setTypingMap]         = useState({})   // { 'group:5': 'ion', 'dm:2': true }
+  const typingTimers                      = useRef({})
 
   // Închide dropdown-ul la click în afară
   useEffect(() => {
@@ -391,6 +415,34 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
       socket.off('unread:new',  handleUnread)
     }
   }, [loadDms])
+
+  // ─── Socket: typing indicators ─────────────────────────────────
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+
+    const handleTypingStart = ({ room, username }) => {
+      if (!room) return
+      setTypingMap(prev => ({ ...prev, [room]: username }))
+      clearTimeout(typingTimers.current[room])
+      typingTimers.current[room] = setTimeout(() => {
+        setTypingMap(prev => { const n = { ...prev }; delete n[room]; return n })
+      }, 4000)
+    }
+
+    const handleTypingStop = ({ room }) => {
+      if (!room) return
+      clearTimeout(typingTimers.current[room])
+      setTypingMap(prev => { const n = { ...prev }; delete n[room]; return n })
+    }
+
+    socket.on('typing:start', handleTypingStart)
+    socket.on('typing:stop',  handleTypingStop)
+    return () => {
+      socket.off('typing:start', handleTypingStart)
+      socket.off('typing:stop',  handleTypingStop)
+    }
+  }, [])
 
   const initials = `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
 
@@ -496,6 +548,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
                   muted={muted}
                   pinned={pinnedConvs.has(convKey)}
                   compact={compact}
+                  typingLabel={typingMap[`group:${group.id}`] || null}
                   optionsOpen={optionsFor === convKey}
                   onOpenOptions={(k) => setOptionsFor(k)}
                   onCloseOptions={() => setOptionsFor(null)}
@@ -554,6 +607,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
                     pinned={pinnedConvs.has(convKey)}
                     compact={compact}
                     userStatus={userStatuses[conv.user_id]}
+                    typingLabel={typingMap[`dm:${conv.conv_id}`] || null}
                     optionsOpen={optionsFor === convKey}
                     onOpenOptions={(k) => setOptionsFor(k)}
                     onCloseOptions={() => setOptionsFor(null)}

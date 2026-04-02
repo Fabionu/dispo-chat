@@ -128,19 +128,17 @@ function ProfilePopup({ profile, onClose }) {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop + centering wrapper */}
       <div
-        className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm"
+        className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center"
         onClick={onClose}
-      />
-
+      >
       {/* Modal */}
       <div
-        className="fixed z-[90] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-3xl shadow-2xl overflow-hidden panel-in"
+        className="rounded-3xl shadow-2xl overflow-hidden panel-in w-80"
         style={{
           background: 'var(--c-surface)',
           border: '1px solid var(--c-border-lg)',
-          width: 320,
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -185,6 +183,7 @@ function ProfilePopup({ profile, onClose }) {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* Full-size image overlay */}
@@ -1367,6 +1366,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       {showAddMember && group && (
         <AddMemberModal
           groupId={group.id}
+          currentMembers={members}
           onClose={() => setShowAddMember(false)}
           onAdded={() => api.getMembers(group.id).then(({ members }) => setMembers(members)).catch(() => {})}
         />

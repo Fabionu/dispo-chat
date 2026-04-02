@@ -176,11 +176,12 @@ export function registerSocketHandlers(io) {
       socket.to(room).emit('typing:start', {
         user_id:  socket.user.id,
         username: socket.user.username,
+        room,
       })
     })
 
     socket.on('typing:stop', ({ room }) => {
-      socket.to(room).emit('typing:stop', { user_id: socket.user.id })
+      socket.to(room).emit('typing:stop', { user_id: socket.user.id, room })
     })
 
     socket.on('disconnect', () => {
