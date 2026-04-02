@@ -176,9 +176,29 @@ const SettingsContext = createContext(null)
 
 export function SettingsProvider({ children, user, onUserUpdate }) {
   const [appearance, setAppearance] = useState(() => {
+    // Prefer DB-saved preferences, fall back to localStorage, then defaults
+    const dbPrefs = user?.preferences?.appearance
+    if (dbPrefs && Object.keys(dbPrefs).length > 0) {
+      return { ...DEFAULT, ...dbPrefs }
+    }
     try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem('dc_appearance') || '{}') } }
     catch { return DEFAULT }
   })
+
+  // Sync appearance when user.preferences changes (e.g. after login/me fetch)
+  const prevUserId = useRef(null)
+  useEffect(() => {
+    if (!user) return
+    if (prevUserId.current === user.id) return
+    prevUserId.current = user.id
+    const dbPrefs = user?.preferences?.appearance
+    if (dbPrefs && Object.keys(dbPrefs).length > 0) {
+      setAppearance(prev => ({ ...prev, ...dbPrefs }))
+    }
+  }, [user])
+
+  // Debounced save to DB
+  const saveTimer = useRef(null)
 
   useEffect(() => {
     const root   = document.documentElement
@@ -196,6 +216,12 @@ export function SettingsProvider({ children, user, onUserUpdate }) {
     // Bubble color driven by accent, not theme
     root.style.setProperty('--c-msg-own', theme.light ? accent.msgOwnLight : accent.msgOwnDark)
     localStorage.setItem('dc_appearance', JSON.stringify(appearance))
+
+    // Persist to DB (debounced 1s)
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      api.updateProfile({ preferences: { appearance } }).catch(() => {})
+    }, 1000)
   }, [appearance])
 
   const updateAppearance = useCallback((patch) => setAppearance(prev => ({ ...prev, ...patch })), [])

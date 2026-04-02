@@ -53,7 +53,7 @@ router.post('/login', async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT id, first_name, last_name, username, unique_code, avatar_url, status, password_hash
+      `SELECT id, first_name, last_name, username, unique_code, avatar_url, status, preferences, password_hash
        FROM users WHERE username = $1`,
       [username]
     )
@@ -86,7 +86,7 @@ router.get('/me', async (req, res) => {
   try {
     const payload = jwt.verify(header.slice(7), process.env.JWT_SECRET)
     const { rows } = await pool.query(
-      `SELECT id, first_name, last_name, username, unique_code, avatar_url, status FROM users WHERE id = $1`,
+      `SELECT id, first_name, last_name, username, unique_code, avatar_url, status, preferences FROM users WHERE id = $1`,
       [payload.id]
     )
     if (!rows[0]) return res.status(404).json({ error: 'User not found' })
@@ -96,9 +96,9 @@ router.get('/me', async (req, res) => {
   }
 })
 
-// PATCH /api/auth/profile — update avatar_url and/or status
+// PATCH /api/auth/profile — update avatar_url, status, and/or preferences
 router.patch('/profile', requireAuth, async (req, res) => {
-  const { avatar_url, status } = req.body
+  const { avatar_url, status, preferences } = req.body
   const VALID_STATUSES = ['available', 'busy', 'away', 'dnd', 'offline']
 
   if (status && !VALID_STATUSES.includes(status)) {
@@ -106,15 +106,16 @@ router.patch('/profile', requireAuth, async (req, res) => {
   }
 
   const sets = [], vals = []
-  if (avatar_url !== undefined) { sets.push(`avatar_url = $${sets.length + 1}`); vals.push(avatar_url) }
-  if (status    !== undefined) { sets.push(`status = $${sets.length + 1}`);     vals.push(status) }
+  if (avatar_url   !== undefined) { sets.push(`avatar_url = $${sets.length + 1}`);                       vals.push(avatar_url) }
+  if (status       !== undefined) { sets.push(`status = $${sets.length + 1}`);                           vals.push(status) }
+  if (preferences  !== undefined) { sets.push(`preferences = preferences || $${sets.length + 1}::jsonb`); vals.push(JSON.stringify(preferences)) }
   if (!sets.length) return res.status(400).json({ error: 'Nothing to update' })
 
   try {
     vals.push(req.user.id)
     const { rows } = await pool.query(
       `UPDATE users SET ${sets.join(', ')} WHERE id = $${vals.length}
-       RETURNING id, first_name, last_name, username, unique_code, avatar_url, status`,
+       RETURNING id, first_name, last_name, username, unique_code, avatar_url, status, preferences`,
       vals
     )
     res.json({ user: rows[0] })
