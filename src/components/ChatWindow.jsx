@@ -363,7 +363,9 @@ function sameGroup(a, b) {
   if (!a || !b) return false
   if (a.type === 'system' || b.type === 'system') return false
   if (b.replyTo) return false
-  return a.isOwn === b.isOwn && a.senderName === b.senderName && a.time === b.time
+  if (a.isOwn !== b.isOwn || a.senderName !== b.senderName) return false
+  const diff = Math.abs(new Date(b.createdAt) - new Date(a.createdAt))
+  return diff < 5 * 60 * 1000
 }
 
 // ─── Message reads panel ──────────────────────────────────────
