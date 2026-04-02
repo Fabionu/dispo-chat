@@ -41,7 +41,7 @@ textarea { field-sizing: content; }
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #0a0a0f inset !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--c-surface2, #0a0a0f) inset !important;
   -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
   caret-color: white;
 }

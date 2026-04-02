@@ -493,23 +493,47 @@ function AppearanceTab({ appearance, onUpdate }) {
       {/* Theme */}
       <div>
         <div className="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2.5">Theme</div>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(THEMES).map(([key, t]) => (
-            <button
-              key={key}
-              onClick={() => onUpdate({ theme: key })}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs transition
-                ${appearance.theme === key
-                  ? 'ring-2 ring-[var(--c-accent)] bg-white/[0.05]'
-                  : 'ring-1 ring-white/[0.07] hover:ring-white/[0.15]'}`}
-            >
-              <span
-                className="w-4 h-4 rounded-full flex-shrink-0 border border-black/10"
-                style={{ background: t['--c-bg'] }}
-              />
-              <span className="text-white/70">{t.label}</span>
-            </button>
-          ))}
+        <div className="grid grid-cols-3 gap-2">
+          {Object.entries(THEMES).map(([key, t]) => {
+            const active  = appearance.theme === key
+            const isLight = t.light
+            const txtHi   = isLight ? 'rgba(12,12,22,0.80)' : 'rgba(255,255,255,0.55)'
+            const txtLo   = isLight ? 'rgba(12,12,22,0.35)' : 'rgba(255,255,255,0.20)'
+            const bubble  = isLight ? t['--c-msg-own'] : t['--c-msg-own']
+            return (
+              <button
+                key={key}
+                onClick={() => onUpdate({ theme: key })}
+                className={`flex flex-col items-stretch rounded-xl overflow-hidden transition
+                  ${active
+                    ? 'ring-2 ring-[var(--c-accent)]'
+                    : 'ring-1 ring-white/[0.08] hover:ring-white/[0.18]'}`}
+              >
+                {/* Mini preview */}
+                <div className="flex h-12 overflow-hidden">
+                  {/* Sidebar strip */}
+                  <div className="w-6 flex-shrink-0 flex flex-col gap-1 pt-2 px-1" style={{ background: t['--c-sidebar'] }}>
+                    {[1,0.5,0.7].map((o, i) => (
+                      <div key={i} className="h-1 rounded-full" style={{ background: t['--c-surface3'], opacity: o }} />
+                    ))}
+                  </div>
+                  {/* Chat area */}
+                  <div className="flex-1 flex flex-col justify-end gap-1 p-1.5" style={{ background: t['--c-bg'] }}>
+                    <div className="self-start h-1.5 w-8 rounded-full" style={{ background: t['--c-surface3'] }} />
+                    <div className="self-end h-1.5 w-6 rounded-full" style={{ background: bubble, opacity: 0.85 }} />
+                    <div className="self-start h-1.5 w-10 rounded-full" style={{ background: t['--c-surface3'] }} />
+                  </div>
+                </div>
+                {/* Label */}
+                <div
+                  className="py-1.5 text-center text-[10px] font-medium"
+                  style={{ background: t['--c-surface'], color: active ? 'var(--c-accent)' : txtHi }}
+                >
+                  {t.label}
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
 
