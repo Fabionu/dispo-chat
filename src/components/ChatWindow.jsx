@@ -711,9 +711,11 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   const [profileUser, setProfileUser]         = useState(null)
   const [hasMore, setHasMore]                 = useState(false)
   const [loadingMore, setLoadingMore]         = useState(false)
+  const [showScrollBtn, setShowScrollBtn]     = useState(false)
   const searchInputRef                        = useRef(null)
   const bottomRef                             = useRef(null)
   const topRef                                = useRef(null)
+  const scrollContainerRef                    = useRef(null)
   const currentRoomRef                        = useRef(null)
   const typingTimers                          = useRef({})
   const typingTimeoutRef                      = useRef(null)
@@ -942,7 +944,13 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   }, [activeConversation, group?.id, dmConvId, user.id])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = scrollContainerRef.current
+    if (!el) return
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    // Auto-scroll only if user is already near the bottom (within 200px)
+    if (distFromBottom < 200) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages])
 
   const handleChangeRole = async (userId, role) => {
@@ -967,6 +975,22 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
     setHighlightedMsgId(id)
     highlightTimer.current = setTimeout(() => setHighlightedMsgId(null), 1600)
   }
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  // Show scroll-to-bottom button when scrolled up more than 300px
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const onScroll = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      setShowScrollBtn(distFromBottom > 300)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [activeConversation])
 
   const loadMore = async () => {
     if (loadingMore || !hasMore || !messages.length) return
@@ -1266,7 +1290,14 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
         <div className="px-6 py-2 border-b border-white/[0.04] bg-white/[0.01] flex items-center gap-2.5">
           <IconPin size={11} stroke={1.4} color="rgba(251,191,36,0.45)" />
           <button
-            onClick={() => scrollToMessage(pinnedMsg.id)}
+            onClick={() => {
+              if (msgRefs.current[pinnedMsg.id]) {
+                scrollToMessage(pinnedMsg.id)
+              } else {
+                // message not loaded yet — scroll to top to trigger load more
+                topRef.current?.scrollIntoView({ behavior: 'smooth' })
+              }
+            }}
             className="flex-1 min-w-0 text-left hover:opacity-75 transition-opacity"
           >
             <div className="text-[10px] text-white/25 mb-0.5">
@@ -1285,8 +1316,10 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       )}
 
       {/* Messages */}
+      <div className="relative flex-1 min-h-0">
       <div
-        className={`flex-1 overflow-y-auto px-7 py-6 ${densityClass}`}
+        ref={scrollContainerRef}
+        className={`h-full overflow-y-auto px-7 py-6 ${densityClass}`}
         style={{ backgroundImage: chatBgImage, backgroundSize: chatBgSize, fontSize: 'var(--c-font-size)' }}
       >
         {hasMore && (
@@ -1337,6 +1370,21 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
           )
         })}
         <div ref={bottomRef} />
+      </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollBtn && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-4 right-5 z-20 w-8 h-8 flex items-center justify-center rounded-full border border-white/[0.12] bg-[var(--c-surface3)] shadow-lg transition-all hover:border-white/25 hover:scale-105"
+          title="Scroll to bottom"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-white/55">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <polyline points="19 12 12 19 5 12"/>
+          </svg>
+        </button>
+      )}
       </div>
 
       {/* Typing indicator */}
