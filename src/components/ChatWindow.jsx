@@ -675,21 +675,25 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
           api.markGroupRead(message.group_id).catch(() => {})
         }
       }
-      setMessages(prev => [...prev, {
-        id:          message.id,
-        content:     message.content,
-        time:        new Date(message.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
-        isOwn,
-        senderName:  `${message.first_name} ${message.last_name}`,
-        avatar:      `${message.first_name?.[0] ?? ''}${message.last_name?.[0] ?? ''}`.toUpperCase(),
-        edited_at:   null,
-        createdAt:   message.created_at,
-        replyTo:     message.reply_to_id ? {
-          id:         message.reply_to_id,
-          content:    message.reply_content,
-          senderName: `${message.reply_first_name ?? ''} ${message.reply_last_name ?? ''}`.trim(),
-        } : null,
-      }])
+      setMessages(prev => {
+        // Deduplicate — message may already be added optimistically via ack
+        if (prev.some(m => m.id === message.id)) return prev
+        return [...prev, {
+          id:          message.id,
+          content:     message.content,
+          time:        new Date(message.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
+          isOwn,
+          senderName:  `${message.first_name} ${message.last_name}`,
+          avatar:      `${message.first_name?.[0] ?? ''}${message.last_name?.[0] ?? ''}`.toUpperCase(),
+          edited_at:   null,
+          createdAt:   message.created_at,
+          replyTo:     message.reply_to_id ? {
+            id:         message.reply_to_id,
+            content:    message.reply_content,
+            senderName: `${message.reply_first_name ?? ''} ${message.reply_last_name ?? ''}`.trim(),
+          } : null,
+        }]
+      })
     }
 
     const handleMemberAdded = ({ user: newUser, role }) => {
@@ -795,6 +799,15 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       currentRoomRef.current = null
     }
 
+    // Re-join current room on socket reconnect (room membership is lost on disconnect)
+    const handleReconnect = () => {
+      if (currentRoomRef.current) {
+        const [type, id] = currentRoomRef.current.split(':')
+        socket?.emit(type === 'group' ? 'group:join' : 'dm:join', parseInt(id))
+      }
+    }
+    socket?.on('connect', handleReconnect)
+
     setTypers([])
     setReplyTo(null)
     setEditingMsg(null)
@@ -843,6 +856,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
     }
 
     return () => {
+      socket?.off('connect', handleReconnect)
       if (currentRoomRef.current && socket) {
         const [type, id] = currentRoomRef.current.split(':')
         socket.emit(type === 'group' ? 'group:leave' : 'dm:leave', parseInt(id))
@@ -1008,8 +1022,35 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
         : { conv_id: dmConvId, content }
 
       socket.emit(event, payload, (ack) => {
-        if (ack?.error) { setInput(content); setReplyTo(currentReplyTo) }
-        else playSend()
+        if (ack?.error) {
+          setInput(content)
+          setReplyTo(currentReplyTo)
+        } else {
+          playSend()
+          // Add message immediately from ack payload (handles reconnect case
+          // where the socket echo may not arrive if room join was lost)
+          if (ack?.message) {
+            const msg = ack.message
+            setMessages(prev => {
+              if (prev.some(m => m.id === msg.id)) return prev
+              return [...prev, {
+                id:        msg.id,
+                content:   msg.content,
+                time:      new Date(msg.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
+                isOwn:     true,
+                senderName: `${user.first_name} ${user.last_name}`,
+                avatar:    `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase(),
+                edited_at: null,
+                createdAt: msg.created_at,
+                replyTo:   msg.reply_to_id ? {
+                  id:         msg.reply_to_id,
+                  content:    msg.reply_content,
+                  senderName: `${msg.reply_first_name ?? ''} ${msg.reply_last_name ?? ''}`.trim(),
+                } : null,
+              }]
+            })
+          }
+        }
         setSending(false)
       })
     } else {

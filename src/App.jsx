@@ -60,6 +60,25 @@ export default function App() {
     if (!socket) return
 
     const handleMessage = ({ type, message }) => {
+      // Update sidebar last_message for the active conversation's room
+      if (type === 'group') {
+        setGroups(prev => {
+          const updated = prev.map(g =>
+            g.id === message.group_id
+              ? { ...g, last_message: message.content, last_message_at: message.created_at }
+              : g
+          )
+          return updated.sort((a, b) => {
+            if (!a.last_message_at) return 1
+            if (!b.last_message_at) return -1
+            return new Date(b.last_message_at) - new Date(a.last_message_at)
+          })
+        })
+      }
+    }
+
+    // Received via personal room (user:{id}) for messages in other conversations
+    const handleUnread = ({ type, message }) => {
       const conv = activeConvRef.current
 
       if (type === 'group') {
@@ -76,7 +95,7 @@ export default function App() {
           })
         })
         const isActive = conv?.type === 'group' && conv.group.id === message.group_id
-        if (!isActive && message.sender_id !== user.id) {
+        if (!isActive) {
           setUnreads(prev => ({
             ...prev,
             [`group:${message.group_id}`]: (prev[`group:${message.group_id}`] || 0) + 1,
@@ -86,7 +105,7 @@ export default function App() {
 
       if (type === 'dm') {
         const isActive = conv?.type === 'dm' && conv.convId === message.conv_id
-        if (!isActive && message.sender_id !== user.id) {
+        if (!isActive) {
           setUnreads(prev => ({
             ...prev,
             [`dm:${message.conv_id}`]: (prev[`dm:${message.conv_id}`] || 0) + 1,
@@ -103,11 +122,13 @@ export default function App() {
     const handleGroupDeletedSocket = ({ group_id }) => handleGroupRemoved(group_id)
 
     socket.on('message:new',        handleMessage)
+    socket.on('unread:new',         handleUnread)
     socket.on('user:status_changed', handleStatusChanged)
     socket.on('group:updated',       handleGroupUpdatedSocket)
     socket.on('group:deleted',       handleGroupDeletedSocket)
     return () => {
       socket.off('message:new',        handleMessage)
+      socket.off('unread:new',         handleUnread)
       socket.off('user:status_changed', handleStatusChanged)
       socket.off('group:updated',       handleGroupUpdatedSocket)
       socket.off('group:deleted',       handleGroupDeletedSocket)

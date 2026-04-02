@@ -365,8 +365,31 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
       })
     }
 
+    // Also handle DM updates from unread:new (messages received while DM room not active)
+    const handleUnread = ({ type, message }) => {
+      if (type !== 'dm') return
+      setDmConvs(prev => {
+        const exists = prev.some(c => c.conv_id === message.conv_id)
+        if (!exists) { loadDms(); return prev }
+        const updated = prev.map(c =>
+          c.conv_id === message.conv_id
+            ? { ...c, last_message: message.content, last_message_at: message.created_at }
+            : c
+        )
+        return updated.sort((a, b) => {
+          if (!a.last_message_at) return 1
+          if (!b.last_message_at) return -1
+          return new Date(b.last_message_at) - new Date(a.last_message_at)
+        })
+      })
+    }
+
     socket.on('message:new', handleMessage)
-    return () => socket.off('message:new', handleMessage)
+    socket.on('unread:new',  handleUnread)
+    return () => {
+      socket.off('message:new', handleMessage)
+      socket.off('unread:new',  handleUnread)
+    }
   }, [loadDms])
 
   const initials = `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()

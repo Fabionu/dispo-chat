@@ -18,6 +18,9 @@ export function registerSocketHandlers(io) {
   io.on('connection', (socket) => {
     console.log(`Socket connected: user ${socket.user.id}`)
 
+    // Join personal room for unread notifications
+    socket.join(`user:${socket.user.id}`)
+
     // ─── Group rooms ─────────────────────────────────────────────
     socket.on('group:join',  (groupId) => socket.join(`group:${groupId}`))
     socket.on('group:leave', (groupId) => socket.leave(`group:${groupId}`))
@@ -82,7 +85,17 @@ export function registerSocketHandlers(io) {
 
         // Broadcast to all in room (including sender)
         io.to(`group:${group_id}`).emit('message:new', { type: 'group', message: payload })
-        ack?.({ ok: true })
+
+        // Notify other members via their personal room (for unread badges)
+        const { rows: otherMembers } = await pool.query(
+          'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2',
+          [group_id, socket.user.id]
+        )
+        for (const member of otherMembers) {
+          io.to(`user:${member.user_id}`).emit('unread:new', { type: 'group', message: payload })
+        }
+
+        ack?.({ ok: true, message: payload })
       } catch (err) {
         console.error(err)
         ack?.({ error: 'Server error' })
@@ -131,7 +144,17 @@ export function registerSocketHandlers(io) {
         }
 
         io.to(`dm:${conv_id}`).emit('message:new', { type: 'dm', message: payload })
-        ack?.({ ok: true })
+
+        // Notify the other participant via their personal room (for unread badges)
+        const { rows: otherParticipants } = await pool.query(
+          'SELECT user_id FROM dm_participants WHERE conv_id = $1 AND user_id != $2',
+          [conv_id, socket.user.id]
+        )
+        for (const p of otherParticipants) {
+          io.to(`user:${p.user_id}`).emit('unread:new', { type: 'dm', message: payload })
+        }
+
+        ack?.({ ok: true, message: payload })
       } catch (err) {
         console.error(err)
         ack?.({ error: 'Server error' })
