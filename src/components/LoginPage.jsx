@@ -266,17 +266,6 @@ export default function LoginPage({ onLogin, onRegister }) {
             </button>
           </div>
 
-          {/* Demo hint */}
-          <div style={{
-            marginTop: '24px',
-            padding: '12px 14px',
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.05)',
-            borderRadius: '9px',
-          }}>
-            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', fontWeight: 500, marginBottom: '6px' }}>Demo credentials</p>
-            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.18)', fontFamily: 'monospace' }}>ion.popescu · demo123</p>
-          </div>
         </div>
       </div>
 

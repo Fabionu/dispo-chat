@@ -128,7 +128,7 @@ function LoginForm({ onLogin }) {
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <Field label="Username" value={username} onChange={e => { setUsername(e.target.value); setError('') }}
-        placeholder="ion.popescu" focused={focused} focusKey="un" onFocus={setFocused}
+        placeholder="username" focused={focused} focusKey="un" onFocus={setFocused}
         icon={IconUser} autoFocus />
       <Field label="Password" type="password" value={password} onChange={e => { setPassword(e.target.value); setError('') }}
         placeholder="••••••••" focused={focused} focusKey="pw" onFocus={setFocused} icon={IconLock} />
@@ -194,20 +194,20 @@ function RegisterForm({ onLogin }) {
       <div style={{ display: 'flex', gap: '10px' }}>
         <div style={{ flex: 1 }}>
           <label style={lStyle}>First name</label>
-          <input type="text" value={form.first_name} onChange={set('first_name')} placeholder="Ion"
+          <input type="text" value={form.first_name} onChange={set('first_name')} placeholder="First name"
             onFocus={() => setFocused('fn')} onBlur={() => setFocused(null)} required style={iSimple('fn')} autoFocus />
         </div>
         <div style={{ flex: 1 }}>
           <label style={lStyle}>Last name</label>
-          <input type="text" value={form.last_name} onChange={set('last_name')} placeholder="Popescu"
+          <input type="text" value={form.last_name} onChange={set('last_name')} placeholder="Last name"
             onFocus={() => setFocused('ln')} onBlur={() => setFocused(null)} required style={iSimple('ln')} />
         </div>
       </div>
 
       <Field label="Username" value={form.username} onChange={set('username')}
-        placeholder="ion.popescu" focused={focused} focusKey="un" onFocus={setFocused} icon={IconUser} />
+        placeholder="username" focused={focused} focusKey="un" onFocus={setFocused} icon={IconUser} />
       <Field label="Email" type="email" value={form.email} onChange={set('email')}
-        placeholder="ion@company.com" focused={focused} focusKey="em" onFocus={setFocused} icon={IconMail} />
+        placeholder="email@company.com" focused={focused} focusKey="em" onFocus={setFocused} icon={IconMail} />
       <Field label="Password" type="password" value={form.password} onChange={set('password')}
         placeholder="••••••••" focused={focused} focusKey="pw" onFocus={setFocused} icon={IconLock} />
       <Field label="Confirm password" type="password" value={form.confirm} onChange={set('confirm')}

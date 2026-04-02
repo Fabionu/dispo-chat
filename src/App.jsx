@@ -116,6 +116,7 @@ export default function App() {
 
     const handleStatusChanged = ({ user_id, status }) => {
       setUserStatuses(prev => ({ ...prev, [user_id]: status }))
+      if (user_id === user?.id) setUser(prev => ({ ...prev, status }))
     }
 
     const handleGroupUpdatedSocket = (updatedGroup) => handleGroupUpdated(updatedGroup)

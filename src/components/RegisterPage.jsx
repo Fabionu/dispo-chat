@@ -145,7 +145,7 @@ export default function RegisterPage({ onRegister, onBack }) {
                   onChange={set('first_name')}
                   onFocus={() => setFocused('fn')}
                   onBlur={() => setFocused(null)}
-                  placeholder="Ion"
+                  placeholder="First name"
                   required
                   style={iFieldSimple('fn')}
                 />
@@ -158,7 +158,7 @@ export default function RegisterPage({ onRegister, onBack }) {
                   onChange={set('last_name')}
                   onFocus={() => setFocused('ln')}
                   onBlur={() => setFocused(null)}
-                  placeholder="Popescu"
+                  placeholder="Last name"
                   required
                   style={iFieldSimple('ln')}
                 />
@@ -179,7 +179,7 @@ export default function RegisterPage({ onRegister, onBack }) {
                   onChange={set('username')}
                   onFocus={() => setFocused('un')}
                   onBlur={() => setFocused(null)}
-                  placeholder="ion.popescu"
+                  placeholder="username"
                   required
                   style={iField('un')}
                 />

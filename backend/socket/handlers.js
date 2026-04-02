@@ -39,6 +39,7 @@ export function registerSocketHandlers(io) {
         const current = rows[0]?.status
         if (current === 'offline') {
           await pool.query(`UPDATE users SET status = 'available' WHERE id = $1`, [uid])
+          io.to(`user:${uid}`).emit('user:status_changed', { user_id: uid, status: 'available' })
           socket.broadcast.emit('user:status_changed', { user_id: uid, status: 'available' })
         } else if (current) {
           socket.broadcast.emit('user:status_changed', { user_id: uid, status: current })
