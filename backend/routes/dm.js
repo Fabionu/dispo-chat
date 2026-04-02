@@ -158,7 +158,18 @@ router.get('/:id/messages', async (req, res) => {
     const hasMore = rawRows.length > PAGE_SIZE
     const rows = rawRows.slice(0, PAGE_SIZE).reverse()
 
-    res.json({ messages: rows, has_more: hasMore })
+    // Fetch pinned message
+    const { rows: [pinRow] } = await pool.query(`
+      SELECT m.id, m.content, u.first_name, u.last_name
+      FROM dm_conversations dc
+      LEFT JOIN dm_messages m ON m.id = dc.pinned_message_id
+      LEFT JOIN users u ON u.id = m.sender_id
+      WHERE dc.id = $1
+    `, [convId])
+
+    const pinned_message = pinRow?.id ? pinRow : null
+
+    res.json({ messages: rows, has_more: hasMore, pinned_message })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
@@ -184,6 +195,60 @@ router.post('/:id/messages', async (req, res) => {
       [convId, req.user.id, content.trim()]
     )
     res.status(201).json({ message: msg })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// POST /api/dm/:id/pin — pin a message
+router.post('/:id/pin', async (req, res) => {
+  const convId     = parseInt(req.params.id)
+  const { message_id } = req.body
+  if (!message_id) return res.status(400).json({ error: 'message_id is required' })
+
+  const { rows: auth } = await pool.query(
+    'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+    [convId, req.user.id]
+  )
+  if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
+
+  try {
+    const { rows: msgRows } = await pool.query(
+      'SELECT id, content, sender_id FROM dm_messages WHERE id = $1 AND conv_id = $2',
+      [message_id, convId]
+    )
+    if (!msgRows.length) return res.status(404).json({ error: 'Message not found' })
+    const msg = msgRows[0]
+
+    await pool.query('UPDATE dm_conversations SET pinned_message_id = $1 WHERE id = $2', [message_id, convId])
+
+    const { rows: userRows } = await pool.query(
+      'SELECT first_name, last_name FROM users WHERE id = $1', [msg.sender_id]
+    )
+    const pinned_message = { id: msg.id, content: msg.content, ...userRows[0] }
+
+    req.io.to(`dm:${convId}`).emit('message:pinned', { conv_id: convId, pinned_message })
+    res.json({ pinned_message })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// DELETE /api/dm/:id/pin — unpin
+router.delete('/:id/pin', async (req, res) => {
+  const convId = parseInt(req.params.id)
+  const { rows: auth } = await pool.query(
+    'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+    [convId, req.user.id]
+  )
+  if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
+
+  try {
+    await pool.query('UPDATE dm_conversations SET pinned_message_id = NULL WHERE id = $1', [convId])
+    req.io.to(`dm:${convId}`).emit('message:unpinned', { conv_id: convId })
+    res.json({ ok: true })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })

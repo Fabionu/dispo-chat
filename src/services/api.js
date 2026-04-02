@@ -63,6 +63,8 @@ export const api = {
   getDmMessages:      (convId, beforeId) => request('GET', `/dm/${convId}/messages${beforeId ? `?before_id=${beforeId}` : ''}`),
   sendDmMessage:      (convId, content) => request('POST', `/dm/${convId}/messages`, { content }),
   markDmRead:         (convId)          => request('POST', `/dm/${convId}/read`),
+  pinDmMessage:       (convId, msgId)   => request('POST', `/dm/${convId}/pin`, { message_id: msgId }),
+  unpinDmMessage:     (convId)          => request('DELETE', `/dm/${convId}/pin`),
   getUnreads:         ()                => request('GET', '/dm/unreads'),
 
   // Users

@@ -228,7 +228,7 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
   const menuItems = [
     { label: 'Reply', icon: <IconReply size={12} stroke={1.5} />, action: () => onReply?.(msg) },
     ...(isEditable ? [{ label: 'Edit', icon: <IconPencil size={12} stroke={1.5} />, action: () => onEdit?.(msg) }] : []),
-    ...(isGroup ? [{
+    ...(onPin ? [{
       label: isPinned ? 'Unpin' : 'Pin',
       icon: <IconPin size={12} stroke={1.5} color={isPinned ? 'rgba(251,191,36,0.7)' : 'currentColor'} />,
       action: () => onPin?.(msg),
@@ -929,11 +929,12 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       setPinnedMsg(null)
       api.markDmRead(dmConvId).catch(() => {})
       api.getDmMessages(dmConvId)
-        .then(({ messages, has_more }) => {
+        .then(({ messages, has_more, pinned_message }) => {
           setMessages(formatDmMessages(messages, user.id))
           setHasMore(has_more || false)
+          setPinnedMsg(pinned_message || null)
         })
-        .catch(() => { setMessages([]); setHasMore(false) })
+        .catch(() => { setMessages([]); setHasMore(false); setPinnedMsg(null) })
     }
 
     return () => {
@@ -1097,12 +1098,13 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   }
 
   const handlePin = async (msg) => {
-    if (!group) return
     try {
-      if (pinnedMsg?.id === msg.id) {
-        await api.unpinMessage(group.id)
-      } else {
-        await api.pinMessage(group.id, msg.id)
+      if (group) {
+        if (pinnedMsg?.id === msg.id) await api.unpinMessage(group.id)
+        else await api.pinMessage(group.id, msg.id)
+      } else if (dmConvId) {
+        if (pinnedMsg?.id === msg.id) await api.unpinDmMessage(dmConvId)
+        else await api.pinDmMessage(dmConvId, msg.id)
       }
     } catch {}
   }
@@ -1289,7 +1291,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       )}
 
       {/* Pinned message banner */}
-      {pinnedMsg && group && (
+      {pinnedMsg && (group || dmConvId) && (
         <div className="px-6 py-2 border-b border-white/[0.04] bg-white/[0.01] flex items-center gap-2.5">
           <IconPin size={11} stroke={1.4} color="rgba(251,191,36,0.45)" />
           <button
@@ -1297,7 +1299,6 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
               if (msgRefs.current[pinnedMsg.id]) {
                 scrollToMessage(pinnedMsg.id)
               } else {
-                // message not loaded yet — scroll to top to trigger load more
                 topRef.current?.scrollIntoView({ behavior: 'smooth' })
               }
             }}
@@ -1309,7 +1310,10 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
             <div className="text-[11px] text-white/50 truncate">{pinnedMsg.content}</div>
           </button>
           <button
-            onClick={() => api.unpinMessage(group.id).catch(() => {})}
+            onClick={() => group
+              ? api.unpinMessage(group.id).catch(() => {})
+              : api.unpinDmMessage(dmConvId).catch(() => {})
+            }
             className="text-white/15 hover:text-white/40 transition flex-shrink-0 ml-1"
             title="Unpin"
           >

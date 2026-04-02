@@ -87,8 +87,9 @@ CREATE TABLE IF NOT EXISTS message_reads (
 );
 
 CREATE TABLE IF NOT EXISTS dm_conversations (
-  id         SERIAL PRIMARY KEY,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id                SERIAL PRIMARY KEY,
+  pinned_message_id INT,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS dm_participants (
