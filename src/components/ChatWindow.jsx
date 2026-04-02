@@ -326,12 +326,12 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
         <button
           onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
           onDoubleClick={(e) => e.stopPropagation()}
-          className={`w-5 h-5 flex items-center justify-center rounded-md transition
+          className={`w-6 h-6 flex items-center justify-center rounded-lg transition
             ${menuOpen
-              ? 'text-white/55 bg-white/[0.07]'
-              : 'text-white/20 hover:text-white/50 hover:bg-white/[0.10]'}`}
+              ? 'text-white/80 bg-white/[0.14]'
+              : 'text-white/60 bg-white/[0.08] hover:text-white/90 hover:bg-white/[0.16]'}`}
         >
-          <IconChevronDown size={11} stroke={2} />
+          <IconChevronDown size={13} stroke={2.2} />
         </button>
 
         {menuOpen && (
