@@ -153,7 +153,24 @@ input:-webkit-autofill:focus {
 .theme-light .hover\:bg-white\/\[0\.04\]:hover { background-color: rgba(0,0,10, 0.05) !important; }
 .theme-light .hover\:bg-white\/\[0\.05\]:hover { background-color: rgba(0,0,10, 0.06) !important; }
 .theme-light .hover\:bg-white\/\[0\.06\]:hover { background-color: rgba(0,0,10, 0.07) !important; }
+.theme-light .hover\:bg-white\/\[0\.10\]:hover { background-color: rgba(0,0,10, 0.08) !important; }
+.theme-light .hover\:bg-white\/\[0\.11\]:hover { background-color: rgba(0,0,10, 0.09) !important; }
+.theme-light .hover\:bg-white\/\[0\.12\]:hover { background-color: rgba(0,0,10, 0.10) !important; }
+.theme-light .hover\:bg-white\/\[0\.16\]:hover { background-color: rgba(0,0,10, 0.13) !important; }
 .theme-light .focus-within\:border-white\/\[0\.18\]:focus-within { border-color: rgba(0,0,10, 0.26) !important; }
+
+/* Light mode: hover text colors */
+.theme-light .hover\:text-white\/40:hover  { color: rgba(12,12,22, 0.52) !important; }
+.theme-light .hover\:text-white\/45:hover  { color: rgba(12,12,22, 0.56) !important; }
+.theme-light .hover\:text-white\/50:hover  { color: rgba(12,12,22, 0.60) !important; }
+.theme-light .hover\:text-white\/55:hover  { color: rgba(12,12,22, 0.64) !important; }
+.theme-light .hover\:text-white\/60:hover  { color: rgba(12,12,22, 0.68) !important; }
+.theme-light .hover\:text-white\/65:hover  { color: rgba(12,12,22, 0.72) !important; }
+.theme-light .hover\:text-white\/70:hover  { color: rgba(12,12,22, 0.75) !important; }
+.theme-light .hover\:text-white\/75:hover  { color: rgba(12,12,22, 0.78) !important; }
+.theme-light .hover\:text-white\/80:hover  { color: rgba(12,12,22, 0.82) !important; }
+.theme-light .hover\:text-white\/85:hover  { color: rgba(12,12,22, 0.86) !important; }
+.theme-light .hover\:text-white\/90:hover  { color: rgba(12,12,22, 0.90) !important; }
 
 /* Light mode: amber/status/role colors stay as-is (colored enough) */
 .theme-light .text-amber-400\/60 { color: rgba(180,120,0, 0.80) !important; }
