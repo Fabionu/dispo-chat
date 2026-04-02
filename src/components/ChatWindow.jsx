@@ -3,7 +3,7 @@ import { IconSend, IconCheckCheck, IconMessage, IconUserPlus, IconX, IconMoreVer
 import { useSettings, STATUSES, PATTERNS, THEMES } from '../contexts/SettingsContext.jsx'
 import { api } from '../services/api.js'
 import { getSocket } from '../services/socket.js'
-import { playSend, playReceive } from '../services/sounds.js'
+import { playReceive } from '../services/sounds.js'
 import AddMemberModal from './AddMemberModal.jsx'
 import GroupSettingsModal from './GroupSettingsModal.jsx'
 
@@ -1027,7 +1027,6 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
           setInput(content)
           setReplyTo(currentReplyTo)
         } else {
-          playSend()
           // Add message immediately from ack payload (handles reconnect case
           // where the socket echo may not arrive if room join was lost)
           if (ack?.message) {
@@ -1060,7 +1059,6 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
         : api.sendDmMessage(dmConvId, content)
 
       req.then(({ message: msg }) => {
-        playSend()
         setMessages(prev => [...prev, {
           id:        msg.id,
           content:   msg.content,

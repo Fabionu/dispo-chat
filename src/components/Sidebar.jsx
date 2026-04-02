@@ -409,7 +409,7 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
     })
 
   return (
-    <div className="w-72 flex-shrink-0 flex flex-col h-full border-r border-white/[0.05] relative" style={{ background: 'var(--c-sidebar)' }}>
+    <div className="w-96 flex-shrink-0 flex flex-col h-full border-r border-white/[0.05] relative" style={{ background: 'var(--c-sidebar)' }}>
 
       {/* Header */}
       <div className="px-4 pt-5 pb-4 flex items-center justify-between">
