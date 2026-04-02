@@ -5,6 +5,8 @@ import { requireAuth } from '../middleware/requireAuth.js'
 const router = Router()
 router.use(requireAuth)
 
+const PAGE_SIZE = 60
+
 async function isMember(groupId, userId) {
   const { rows } = await pool.query(
     'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
@@ -13,22 +15,25 @@ async function isMember(groupId, userId) {
   return rows[0] || null
 }
 
-// GET /api/group-messages?group_id=X
+// GET /api/group-messages?group_id=X[&before_id=Y]
 router.get('/', async (req, res) => {
-  const groupId = parseInt(req.query.group_id)
+  const groupId  = parseInt(req.query.group_id)
+  const beforeId = req.query.before_id ? parseInt(req.query.before_id) : null
   if (!groupId) return res.status(400).json({ error: 'group_id is required' })
 
   const member = await isMember(groupId, req.user.id)
   if (!member) return res.status(403).json({ error: 'Forbidden' })
 
   try {
-    const { rows } = await pool.query(`
+    const cursorClause = beforeId ? `AND m.id < $3` : ''
+
+    const { rows: rawRows } = await pool.query(`
       SELECT
         m.id, m.type, m.content, m.created_at, m.edited_at,
         u.id AS sender_id, u.first_name, u.last_name, u.username,
         gm.role AS sender_role,
         m.reply_to_id,
-        rm.content   AS reply_content,
+        rm.content    AS reply_content,
         ru.first_name AS reply_first_name,
         ru.last_name  AS reply_last_name
       FROM group_messages m
@@ -36,9 +41,13 @@ router.get('/', async (req, res) => {
       JOIN group_members gm ON gm.group_id = m.group_id AND gm.user_id = m.sender_id
       LEFT JOIN group_messages rm ON rm.id = m.reply_to_id
       LEFT JOIN users ru ON ru.id = rm.sender_id
-      WHERE m.group_id = $1
-      ORDER BY m.created_at ASC
-    `, [groupId])
+      WHERE m.group_id = $1 ${cursorClause}
+      ORDER BY m.created_at DESC
+      LIMIT $2
+    `, beforeId ? [groupId, PAGE_SIZE + 1, beforeId] : [groupId, PAGE_SIZE + 1])
+
+    const hasMore = rawRows.length > PAGE_SIZE
+    const rows = rawRows.slice(0, PAGE_SIZE).reverse()
 
     // Fetch pinned message
     const { rows: [pinRow] } = await pool.query(`
@@ -51,7 +60,7 @@ router.get('/', async (req, res) => {
 
     const pinned_message = pinRow?.id ? pinRow : null
 
-    res.json({ messages: rows, pinned_message })
+    res.json({ messages: rows, pinned_message, has_more: hasMore })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })

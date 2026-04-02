@@ -18,13 +18,20 @@ router.get('/', async (req, res) => {
         u.unique_code,
         u.avatar_url,
         COALESCE(u.status, 'available') AS status,
-        (SELECT content    FROM dm_messages WHERE conv_id = dc.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-        (SELECT created_at FROM dm_messages WHERE conv_id = dc.id ORDER BY created_at DESC LIMIT 1) AS last_message_at
+        lm.content    AS last_message,
+        lm.created_at AS last_message_at
       FROM dm_conversations dc
-      JOIN dm_participants dp ON dp.conv_id = dc.id AND dp.user_id != $1
+      JOIN dm_participants my_dp ON my_dp.conv_id = dc.id AND my_dp.user_id = $1
+      JOIN dm_participants dp    ON dp.conv_id = dc.id AND dp.user_id != $1
       JOIN users u ON u.id = dp.user_id
-      WHERE dc.id IN (SELECT conv_id FROM dm_participants WHERE user_id = $1)
-      ORDER BY last_message_at DESC NULLS LAST
+      LEFT JOIN LATERAL (
+        SELECT content, created_at
+        FROM dm_messages
+        WHERE conv_id = dc.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) lm ON true
+      ORDER BY lm.created_at DESC NULLS LAST
     `, [req.user.id])
 
     res.json({ conversations: rows })
@@ -122,9 +129,11 @@ router.get('/unreads', async (req, res) => {
   }
 })
 
-// GET /api/dm/:id/messages
+// GET /api/dm/:id/messages[?before_id=Y]
 router.get('/:id/messages', async (req, res) => {
-  const convId = parseInt(req.params.id)
+  const convId   = parseInt(req.params.id)
+  const beforeId = req.query.before_id ? parseInt(req.query.before_id) : null
+  const PAGE_SIZE = 60
 
   const { rows: auth } = await pool.query(
     'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
@@ -133,17 +142,23 @@ router.get('/:id/messages', async (req, res) => {
   if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
 
   try {
-    const { rows } = await pool.query(`
+    const cursorClause = beforeId ? `AND m.id < $3` : ''
+
+    const { rows: rawRows } = await pool.query(`
       SELECT
         m.id, m.content, m.created_at,
         u.id AS sender_id, u.first_name, u.last_name, u.username
       FROM dm_messages m
       JOIN users u ON u.id = m.sender_id
-      WHERE m.conv_id = $1
-      ORDER BY m.created_at ASC
-    `, [convId])
+      WHERE m.conv_id = $1 ${cursorClause}
+      ORDER BY m.created_at DESC
+      LIMIT $2
+    `, beforeId ? [convId, PAGE_SIZE + 1, beforeId] : [convId, PAGE_SIZE + 1])
 
-    res.json({ messages: rows })
+    const hasMore = rawRows.length > PAGE_SIZE
+    const rows = rawRows.slice(0, PAGE_SIZE).reverse()
+
+    res.json({ messages: rows, has_more: hasMore })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })

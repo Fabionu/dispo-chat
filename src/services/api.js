@@ -45,7 +45,7 @@ export const api = {
   getMessageReads:  (msgId) => request('GET', `/group-messages/${msgId}/reads`),
 
   // Group messages (group conversation)
-  getGroupMessages:  (groupId)          => request('GET', `/group-messages?group_id=${groupId}`),
+  getGroupMessages:  (groupId, beforeId) => request('GET', `/group-messages?group_id=${groupId}${beforeId ? `&before_id=${beforeId}` : ''}`),
   sendGroupMessage:  (groupId, content) => request('POST', '/group-messages', { group_id: groupId, content }),
   editGroupMessage:  (id, content)      => request('PATCH', `/group-messages/${id}`, { content }),
   pinMessage:        (groupId, msgId)   => request('POST', `/groups/${groupId}/pin`, { message_id: msgId }),
@@ -60,7 +60,7 @@ export const api = {
   getDmConversations: ()                => request('GET', '/dm'),
   startDm:            (other_user_id)   => request('POST', '/dm', { other_user_id }),
   startDmByCode:      (invite_code)     => request('POST', '/dm', { invite_code }),
-  getDmMessages:      (convId)          => request('GET', `/dm/${convId}/messages`),
+  getDmMessages:      (convId, beforeId) => request('GET', `/dm/${convId}/messages${beforeId ? `?before_id=${beforeId}` : ''}`),
   sendDmMessage:      (convId, content) => request('POST', `/dm/${convId}/messages`, { content }),
   markDmRead:         (convId)          => request('POST', `/dm/${convId}/read`),
   getUnreads:         ()                => request('GET', '/dm/unreads'),

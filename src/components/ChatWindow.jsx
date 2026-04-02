@@ -698,8 +698,11 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   const [searchQuery, setSearchQuery]         = useState('')
   const [searchIdx, setSearchIdx]             = useState(0)
   const [profileUser, setProfileUser]         = useState(null)
+  const [hasMore, setHasMore]                 = useState(false)
+  const [loadingMore, setLoadingMore]         = useState(false)
   const searchInputRef                        = useRef(null)
   const bottomRef                             = useRef(null)
+  const topRef                                = useRef(null)
   const currentRoomRef                        = useRef(null)
   const typingTimers                          = useRef({})
   const typingTimeoutRef                      = useRef(null)
@@ -890,11 +893,12 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       }
       api.markGroupRead(group.id).catch(() => {})
       api.getGroupMessages(group.id)
-        .then(({ messages, pinned_message }) => {
+        .then(({ messages, pinned_message, has_more }) => {
           setMessages(formatGroupMessages(messages, user.id))
           setPinnedMsg(pinned_message || null)
+          setHasMore(has_more || false)
         })
-        .catch(() => { setMessages([]); setPinnedMsg(null) })
+        .catch(() => { setMessages([]); setPinnedMsg(null); setHasMore(false) })
       api.getMembers(group.id)
         .then(({ members }) => setMembers(members))
         .catch(() => setMembers([]))
@@ -909,8 +913,11 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       setPinnedMsg(null)
       api.markDmRead(dmConvId).catch(() => {})
       api.getDmMessages(dmConvId)
-        .then(({ messages }) => setMessages(formatDmMessages(messages, user.id)))
-        .catch(() => setMessages([]))
+        .then(({ messages, has_more }) => {
+          setMessages(formatDmMessages(messages, user.id))
+          setHasMore(has_more || false)
+        })
+        .catch(() => { setMessages([]); setHasMore(false) })
     }
 
     return () => {
@@ -948,6 +955,27 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
     clearTimeout(highlightTimer.current)
     setHighlightedMsgId(id)
     highlightTimer.current = setTimeout(() => setHighlightedMsgId(null), 1600)
+  }
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || !messages.length) return
+    const firstId = messages[0]?.id
+    if (!firstId || typeof firstId !== 'number') return
+    setLoadingMore(true)
+    try {
+      if (group) {
+        const { messages: older, has_more } = await api.getGroupMessages(group.id, firstId)
+        setMessages(prev => [...formatGroupMessages(older, user.id), ...prev])
+        setHasMore(has_more || false)
+      } else if (dmConvId) {
+        const { messages: older, has_more } = await api.getDmMessages(dmConvId, firstId)
+        setMessages(prev => [...formatDmMessages(older, user.id), ...prev])
+        setHasMore(has_more || false)
+      }
+      // Keep scroll position — don't jump to bottom
+      topRef.current?.scrollIntoView({ block: 'start' })
+    } catch {}
+    setLoadingMore(false)
   }
 
   // ─── Search ───────────────────────────────────────────────────
@@ -1250,6 +1278,18 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
         className={`flex-1 overflow-y-auto px-7 py-6 ${densityClass}`}
         style={{ backgroundImage: chatBgImage, backgroundSize: chatBgSize, fontSize: 'var(--c-font-size)' }}
       >
+        {hasMore && (
+          <div className="flex justify-center mb-4" ref={topRef}>
+            <button
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="text-xs text-white/40 hover:text-white/70 px-4 py-1.5 rounded-full border border-white/[0.08] hover:bg-white/[0.06] transition disabled:opacity-40"
+            >
+              {loadingMore ? 'Loading...' : 'Load older messages'}
+            </button>
+          </div>
+        )}
+        {!hasMore && <div ref={topRef} />}
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <p className="text-xs text-white/30">No messages yet. Say hello!</p>

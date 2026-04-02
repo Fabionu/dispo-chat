@@ -17,6 +17,7 @@ import dmRoutes            from './routes/dm.js'
 import groupMessageRoutes  from './routes/groupMessages.js'
 import usersRoutes         from './routes/users.js'
 import { registerSocketHandlers } from './socket/handlers.js'
+import { apiLimiter, authLimiter } from './middleware/rateLimiter.js'
 
 const app    = express()
 const server = createServer(app)
@@ -41,13 +42,13 @@ app.use(express.json())
 app.use((req, _, next) => { req.io = io; next() })
 
 // Routes
-app.use('/api/auth',     authRoutes)
-app.use('/api/groups',   groupRoutes)
-app.use('/api/trips',    tripRoutes)
-app.use('/api/messages', messageRoutes)
-app.use('/api/dm',             dmRoutes)
-app.use('/api/group-messages', groupMessageRoutes)
-app.use('/api/users',          usersRoutes)
+app.use('/api/auth',     authLimiter, authRoutes)
+app.use('/api/groups',   apiLimiter, groupRoutes)
+app.use('/api/trips',    apiLimiter, tripRoutes)
+app.use('/api/messages', apiLimiter, messageRoutes)
+app.use('/api/dm',             apiLimiter, dmRoutes)
+app.use('/api/group-messages', apiLimiter, groupMessageRoutes)
+app.use('/api/users',          apiLimiter, usersRoutes)
 
 // Health check
 app.get('/api/health', (_, res) => res.json({ ok: true }))

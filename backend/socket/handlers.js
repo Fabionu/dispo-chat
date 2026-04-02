@@ -63,12 +63,34 @@ export function registerSocketHandlers(io) {
       }
     }
 
-    // ─── Group rooms ─────────────────────────────────────────────
-    socket.on('group:join',  (groupId) => socket.join(`group:${groupId}`))
+    // ─── Per-socket message rate limiter ──────────────────────────
+    const msgTimestamps = []
+    const MSG_LIMIT = 20    // max messages
+    const MSG_WINDOW = 10000 // per 10 seconds
+
+    function isRateLimited() {
+      const now = Date.now()
+      while (msgTimestamps.length && msgTimestamps[0] < now - MSG_WINDOW) msgTimestamps.shift()
+      if (msgTimestamps.length >= MSG_LIMIT) return true
+      msgTimestamps.push(now)
+      return false
+    }
+
+    // ─── Group rooms (membership verified) ───────────────────────
+    socket.on('group:join', async (groupId) => {
+      try {
+        const { rows } = await pool.query(
+          'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+          [groupId, uid]
+        )
+        if (rows.length) socket.join(`group:${groupId}`)
+      } catch {}
+    })
     socket.on('group:leave', (groupId) => socket.leave(`group:${groupId}`))
 
     socket.on('group:message', async ({ group_id, content, reply_to_id }, ack) => {
       if (!group_id || !content?.trim()) return ack?.({ error: 'Invalid data' })
+      if (isRateLimited()) return ack?.({ error: 'Too many messages, slow down.' })
 
       try {
         // Verify membership
@@ -145,12 +167,21 @@ export function registerSocketHandlers(io) {
       }
     })
 
-    // ─── DM rooms ────────────────────────────────────────────────
-    socket.on('dm:join',  (convId) => socket.join(`dm:${convId}`))
+    // ─── DM rooms (participant verified) ────────────────────────
+    socket.on('dm:join', async (convId) => {
+      try {
+        const { rows } = await pool.query(
+          'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+          [convId, uid]
+        )
+        if (rows.length) socket.join(`dm:${convId}`)
+      } catch {}
+    })
     socket.on('dm:leave', (convId) => socket.leave(`dm:${convId}`))
 
     socket.on('dm:message', async ({ conv_id, content }, ack) => {
       if (!conv_id || !content?.trim()) return ack?.({ error: 'Invalid data' })
+      if (isRateLimited()) return ack?.({ error: 'Too many messages, slow down.' })
 
       try {
         // Verify participant

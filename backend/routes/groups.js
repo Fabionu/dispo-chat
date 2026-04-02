@@ -43,12 +43,19 @@ router.get('/', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT g.id, g.name, g.description, g.invite_code, gm.role,
-         (SELECT content    FROM group_messages WHERE group_id = g.id ORDER BY created_at DESC LIMIT 1) as last_message,
-         (SELECT created_at FROM group_messages WHERE group_id = g.id ORDER BY created_at DESC LIMIT 1) as last_message_at
+         lm.content    AS last_message,
+         lm.created_at AS last_message_at
        FROM groups g
        JOIN group_members gm ON gm.group_id = g.id
+       LEFT JOIN LATERAL (
+         SELECT content, created_at
+         FROM group_messages
+         WHERE group_id = g.id
+         ORDER BY created_at DESC
+         LIMIT 1
+       ) lm ON true
        WHERE gm.user_id = $1
-       ORDER BY last_message_at DESC NULLS LAST, g.created_at DESC`,
+       ORDER BY lm.created_at DESC NULLS LAST, g.created_at DESC`,
       [req.user.id]
     )
     res.json({ groups: rows })

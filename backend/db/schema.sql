@@ -113,9 +113,17 @@ CREATE TABLE IF NOT EXISTS dm_read_cursors (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_group_messages_group  ON group_messages(group_id);
-CREATE INDEX IF NOT EXISTS idx_group_members_user    ON group_members(user_id);
-CREATE INDEX IF NOT EXISTS idx_messages_trip_id      ON messages(trip_id);
-CREATE INDEX IF NOT EXISTS idx_trips_group_id        ON trips(group_id);
-CREATE INDEX IF NOT EXISTS idx_dm_messages_conv      ON dm_messages(conv_id);
-CREATE INDEX IF NOT EXISTS idx_dm_participants_user  ON dm_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_messages_group      ON group_messages(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_messages_created_at ON group_messages(group_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_group_messages_sender     ON group_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_group_messages_reply      ON group_messages(reply_to_id) WHERE reply_to_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_group_members_user        ON group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_trip_id          ON messages(trip_id);
+CREATE INDEX IF NOT EXISTS idx_trips_group_id            ON trips(group_id);
+CREATE INDEX IF NOT EXISTS idx_dm_messages_conv          ON dm_messages(conv_id);
+CREATE INDEX IF NOT EXISTS idx_dm_messages_created_at    ON dm_messages(conv_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dm_participants_user      ON dm_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_username            ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_unique_code         ON users(unique_code);
+CREATE INDEX IF NOT EXISTS idx_group_read_cursors        ON group_read_cursors(group_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_dm_read_cursors           ON dm_read_cursors(conv_id, user_id);
