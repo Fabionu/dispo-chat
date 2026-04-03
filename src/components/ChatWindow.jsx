@@ -214,24 +214,45 @@ function SystemMessage({ content }) {
   )
 }
 
-function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onReply, onEdit, onPin, pinnedMsgId, isGroup, highlighted, onRef, onScrollTo, highlight, onAvatarClick }) {
+function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onReply, onEdit, onPin, onDelete, pinnedMsgId, isGroup, highlighted, onRef, onScrollTo, highlight, onAvatarClick, dmOtherReadAt }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [openUpward, setOpenUpward] = useState(false)
+  const [menuStyle, setMenuStyle] = useState({})
   const chevronRef = useRef(null)
 
   if (msg.type === 'system') return <SystemMessage content={msg.content} />
 
-  const isPinned   = pinnedMsgId === msg.id
-  const isEditable = isOwn && msg.createdAt &&
+  const isPinned = pinnedMsgId === msg.id
+  const isEditable = isOwn && !msg.deleted && msg.createdAt &&
     (Date.now() - new Date(msg.createdAt).getTime() < 5 * 60 * 1000)
+  // DM: checkmark is colored (read) if the other user's cursor is >= this message's time
+  const dmRead = !isGroup && isOwn && dmOtherReadAt && msg.createdAt &&
+    new Date(dmOtherReadAt) >= new Date(msg.createdAt)
+
+  const IconTrash = ({ size = 12 }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+    </svg>
+  )
 
   const menuItems = [
-    { label: 'Reply', icon: <IconReply size={12} stroke={1.5} />, action: () => onReply?.(msg) },
+    ...(!msg.deleted ? [{ label: 'Reply', icon: <IconReply size={12} stroke={1.5} />, action: () => onReply?.(msg) }] : []),
     ...(isEditable ? [{ label: 'Edit', icon: <IconPencil size={12} stroke={1.5} />, action: () => onEdit?.(msg) }] : []),
-    ...(onPin ? [{
+    ...(!msg.deleted && onPin ? [{
       label: isPinned ? 'Unpin' : 'Pin',
       icon: <IconPin size={12} stroke={1.5} color={isPinned ? 'rgba(251,191,36,0.7)' : 'currentColor'} />,
       action: () => onPin?.(msg),
+    }] : []),
+    ...(!msg.deleted && isOwn ? [{
+      label: 'Delete for everyone',
+      icon: <IconTrash size={12} />,
+      action: () => onDelete?.(msg, 'everyone'),
+      danger: true,
+    }] : []),
+    ...(!msg.deleted ? [{
+      label: 'Delete for me',
+      icon: <IconTrash size={12} />,
+      action: () => onDelete?.(msg, 'me'),
+      danger: true,
     }] : []),
   ]
 
@@ -286,20 +307,27 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
           {/* Bubble */}
           <div
             className={`rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words
-            ${isOwn ? 'text-white/90 rounded-br-sm' : 'text-white/80 rounded-bl-sm'}
-            ${isPinned ? 'ring-1 ring-amber-400/20' : ''}`}
+            ${msg.deleted
+              ? (isOwn ? 'text-white/30 rounded-br-sm' : 'text-white/30 rounded-bl-sm')
+              : (isOwn ? 'text-white/90 rounded-br-sm' : 'text-white/80 rounded-bl-sm')}
+            ${isPinned && !msg.deleted ? 'ring-1 ring-amber-400/20' : ''}`}
             style={{
               background: isOwn ? 'var(--c-msg-own)' : 'var(--c-msg-other)',
               padding: 'var(--c-bubble-py) var(--c-bubble-px)',
             }}
           >
-            <MessageText content={msg.content} highlight={highlight} />
-            {msg.edited_at && (
-              <span className="text-[10px] text-white/20 ml-1.5 select-none">(edited)</span>
-            )}
+            {msg.deleted
+              ? <span className="italic text-white/30 select-none">This message was deleted</span>
+              : <>
+                  <MessageText content={msg.content} highlight={highlight} />
+                  {msg.edited_at && (
+                    <span className="text-[10px] text-white/20 ml-1.5 select-none">(edited)</span>
+                  )}
+                </>
+            }
           </div>
 
-          {/* Chevron trigger + dropdown */}
+          {/* Chevron trigger + dropdown (fixed-position to avoid overflow clipping) */}
           <div
             className={`relative flex-shrink-0 transition-opacity mt-1.5 ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}
           >
@@ -308,7 +336,14 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
               onClick={(e) => {
                 e.stopPropagation()
                 const rect = chevronRef.current?.getBoundingClientRect()
-                setOpenUpward(rect ? rect.bottom > window.innerHeight - 160 : false)
+                if (!rect) return
+                const willOpenUp = rect.bottom > window.innerHeight - 160
+                const menuW = 160
+                const left = isOwn ? Math.max(4, rect.right - menuW) : rect.left
+                setMenuStyle(willOpenUp
+                  ? { bottom: window.innerHeight - rect.top + 4, left, top: 'auto' }
+                  : { top: rect.bottom + 4, left, bottom: 'auto' }
+                )
                 setMenuOpen(v => !v)
               }}
               onDoubleClick={(e) => e.stopPropagation()}
@@ -324,14 +359,17 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
               <>
                 <div className="fixed inset-0 z-[49]" onClick={() => setMenuOpen(false)} />
                 <div
-                  className={`absolute z-50 border rounded-xl overflow-hidden shadow-xl min-w-[130px] ${isOwn ? 'left-0' : 'right-0'} ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}
-                  style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}
+                  className="fixed z-[50] border rounded-xl overflow-hidden shadow-xl min-w-[160px]"
+                  style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)', ...menuStyle }}
                 >
                   {menuItems.map(item => (
                     <button
                       key={item.label}
                       onClick={(e) => { e.stopPropagation(); item.action(); setMenuOpen(false) }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-white/45 hover:text-white/80 hover:bg-white/[0.09] transition text-left"
+                      className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs hover:bg-white/[0.09] transition text-left
+                        ${item.danger
+                          ? 'text-red-400/70 hover:text-red-400'
+                          : 'text-white/45 hover:text-white/80'}`}
                     >
                       <span className="flex-shrink-0">{item.icon}</span>
                       {item.label}
@@ -344,7 +382,7 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
         </div>
 
         {/* Link preview */}
-        {(() => { const u = extractFirstUrl(msg.content); return u ? <LinkPreview key={u} url={u} /> : null })()}
+        {!msg.deleted && (() => { const u = extractFirstUrl(msg.content); return u ? <LinkPreview key={u} url={u} /> : null })()}
 
         {/* Time + checkmarks */}
         {showTime && (
@@ -360,7 +398,7 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
                   <IconCheckCheck size={16} stroke={2.2} />
                 </button>
               ) : (
-                <span className="text-white/30">
+                <span style={dmRead ? { color: 'var(--c-accent)' } : {}} className={dmRead ? 'transition' : 'text-white/30'}>
                   <IconCheckCheck size={16} stroke={2.2} />
                 </span>
               )
@@ -660,8 +698,10 @@ function formatGroupMessages(messages, currentUserId) {
   return messages.map(m => ({
     id:         m.id,
     content:    m.content,
+    deleted:    m.deleted || false,
     time:       new Date(m.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
     isOwn:      m.sender_id === currentUserId,
+    senderId:   m.sender_id,
     senderName: `${m.first_name} ${m.last_name}`,
     avatar:     `${m.first_name?.[0] ?? ''}${m.last_name?.[0] ?? ''}`.toUpperCase(),
     edited_at:  m.edited_at,
@@ -678,8 +718,10 @@ function formatDmMessages(messages, currentUserId) {
   return messages.map(m => ({
     id:         m.id,
     content:    m.content,
+    deleted:    m.deleted || false,
     time:       new Date(m.created_at).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' }),
     isOwn:      m.sender_id === currentUserId,
+    senderId:   m.sender_id,
     senderName: `${m.first_name} ${m.last_name}`,
     avatar:     `${m.first_name?.[0] ?? ''}${m.last_name?.[0] ?? ''}`.toUpperCase(),
     createdAt:  m.created_at,
@@ -714,6 +756,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   const [hasMore, setHasMore]                 = useState(false)
   const [loadingMore, setLoadingMore]         = useState(false)
   const [showScrollBtn, setShowScrollBtn]     = useState(false)
+  const [dmOtherReadAt, setDmOtherReadAt]     = useState(null) // DM: other user's last_read_at
   const searchInputRef                        = useRef(null)
   const bottomRef                             = useRef(null)
   const topRef                                = useRef(null)
@@ -783,6 +826,18 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       setMessages(prev => prev.map(m => m.id === id ? { ...m, content, edited_at } : m))
     }
 
+    const handleDmRead = ({ conv_id, user_id, last_read_at }) => {
+      if (user_id !== user.id) setDmOtherReadAt(last_read_at)
+    }
+
+    const handleMessageDeleted = ({ id, for_everyone }) => {
+      if (for_everyone) {
+        setMessages(prev => prev.map(m => m.id === id ? { ...m, deleted: true, content: null, edited_at: null } : m))
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== id))
+      }
+    }
+
     const handleMessagePinned = ({ pinned_message, pinned_by }) => {
       setPinnedMsg(pinned_message)
       if (pinned_by) {
@@ -818,21 +873,25 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       setTypers(prev => prev.filter(t => t.user_id !== user_id))
     }
 
-    socket.on('message:new',       handleNewMessage)
-    socket.on('message:edited',    handleMessageEdited)
-    socket.on('message:pinned',    handleMessagePinned)
-    socket.on('message:unpinned',  handleMessageUnpinned)
+    socket.on('message:new',        handleNewMessage)
+    socket.on('message:edited',     handleMessageEdited)
+    socket.on('message:deleted',    handleMessageDeleted)
+    socket.on('dm:read',            handleDmRead)
+    socket.on('message:pinned',     handleMessagePinned)
+    socket.on('message:unpinned',   handleMessageUnpinned)
     socket.on('group:member_added', handleMemberAdded)
-    socket.on('typing:start',      handleTypingStart)
-    socket.on('typing:stop',       handleTypingStop)
+    socket.on('typing:start',       handleTypingStart)
+    socket.on('typing:stop',        handleTypingStop)
     return () => {
-      socket.off('message:new',       handleNewMessage)
-      socket.off('message:edited',    handleMessageEdited)
-      socket.off('message:pinned',    handleMessagePinned)
-      socket.off('message:unpinned',  handleMessageUnpinned)
+      socket.off('message:new',        handleNewMessage)
+      socket.off('message:edited',     handleMessageEdited)
+      socket.off('message:deleted',    handleMessageDeleted)
+      socket.off('dm:read',            handleDmRead)
+      socket.off('message:pinned',     handleMessagePinned)
+      socket.off('message:unpinned',   handleMessageUnpinned)
       socket.off('group:member_added', handleMemberAdded)
-      socket.off('typing:start',      handleTypingStart)
-      socket.off('typing:stop',       handleTypingStop)
+      socket.off('typing:start',       handleTypingStart)
+      socket.off('typing:stop',        handleTypingStop)
     }
   }, [user.id])
 
@@ -955,12 +1014,13 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       setPinnedMsg(null)
       api.markDmRead(dmConvId).catch(() => {})
       api.getDmMessages(dmConvId)
-        .then(({ messages, has_more, pinned_message }) => {
+        .then(({ messages, has_more, pinned_message, other_read_at }) => {
           setMessages(formatDmMessages(messages, user.id))
           setHasMore(has_more || false)
           setPinnedMsg(pinned_message || null)
+          setDmOtherReadAt(other_read_at || null)
         })
-        .catch(() => { setMessages([]); setHasMore(false); setPinnedMsg(null) })
+        .catch(() => { setMessages([]); setHasMore(false); setPinnedMsg(null); setDmOtherReadAt(null) })
     }
 
     return () => {
@@ -1131,6 +1191,21 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       } else if (dmConvId) {
         if (pinnedMsg?.id === msg.id) await api.unpinDmMessage(dmConvId)
         else await api.pinDmMessage(dmConvId, msg.id)
+      }
+    } catch {}
+  }
+
+  const handleDelete = async (msg, scope) => {
+    try {
+      if (scope === 'everyone') {
+        if (group) await api.deleteGroupMessage(msg.id)
+        else if (dmConvId) await api.deleteDmMessage(dmConvId, msg.id)
+        // socket will update state via message:deleted event
+      } else {
+        if (group) await api.deleteGroupMessageForMe(msg.id)
+        else if (dmConvId) await api.deleteDmMessageForMe(dmConvId, msg.id)
+        // only affects current user — update local state directly
+        setMessages(prev => prev.filter(m => m.id !== msg.id))
       }
     } catch {}
   }
@@ -1340,10 +1415,10 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
               ? api.unpinMessage(group.id).catch(() => {})
               : api.unpinDmMessage(dmConvId).catch(() => {})
             }
-            className="text-white/15 hover:text-white/40 transition flex-shrink-0 ml-1"
+            className="w-6 h-6 flex items-center justify-center rounded-md text-white/30 hover:text-white/70 hover:bg-white/[0.09] transition flex-shrink-0 ml-1"
             title="Unpin"
           >
-            <IconX size={11} />
+            <IconX size={13} stroke={2.5} />
           </button>
         </div>
       )}
@@ -1399,6 +1474,8 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
               onReply={handleReply}
               onEdit={handleEdit}
               onPin={handlePin}
+              onDelete={handleDelete}
+              dmOtherReadAt={dmOtherReadAt}
             />
           )
         })}
@@ -1471,7 +1548,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
 
       {/* Input */}
       <div className="px-5 pb-5 pt-2">
-        <div className="flex items-end gap-2 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 focus-within:border-white/20 transition-all">
+        <div className="flex items-end gap-2 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 focus-within:border-white/[0.20] transition-colors">
           <textarea
             ref={textareaRef}
             value={input}

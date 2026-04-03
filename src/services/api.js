@@ -47,8 +47,10 @@ export const api = {
   // Group messages (group conversation)
   getGroupMessages:  (groupId, beforeId) => request('GET', `/group-messages?group_id=${groupId}${beforeId ? `&before_id=${beforeId}` : ''}`),
   sendGroupMessage:  (groupId, content) => request('POST', '/group-messages', { group_id: groupId, content }),
-  editGroupMessage:  (id, content)      => request('PATCH', `/group-messages/${id}`, { content }),
-  pinMessage:        (groupId, msgId)   => request('POST', `/groups/${groupId}/pin`, { message_id: msgId }),
+  editGroupMessage:        (id, content)      => request('PATCH', `/group-messages/${id}`, { content }),
+  deleteGroupMessage:      (id)               => request('DELETE', `/group-messages/${id}`),
+  deleteGroupMessageForMe: (id)               => request('DELETE', `/group-messages/${id}/me`),
+  pinMessage:              (groupId, msgId)   => request('POST', `/groups/${groupId}/pin`, { message_id: msgId }),
   unpinMessage:      (groupId)          => request('DELETE', `/groups/${groupId}/pin`),
 
   // Trips (will be integrated into group conversations later)
@@ -61,8 +63,11 @@ export const api = {
   startDm:            (other_user_id)   => request('POST', '/dm', { other_user_id }),
   startDmByCode:      (invite_code)     => request('POST', '/dm', { invite_code }),
   getDmMessages:      (convId, beforeId) => request('GET', `/dm/${convId}/messages${beforeId ? `?before_id=${beforeId}` : ''}`),
-  sendDmMessage:      (convId, content) => request('POST', `/dm/${convId}/messages`, { content }),
-  deleteDmConv:       (convId)          => request('DELETE', `/dm/${convId}`),
+  sendDmMessage:          (convId, content)        => request('POST', `/dm/${convId}/messages`, { content }),
+  editDmMessage:          (convId, msgId, content) => request('PATCH', `/dm/${convId}/messages/${msgId}`, { content }),
+  deleteDmMessage:        (convId, msgId)          => request('DELETE', `/dm/${convId}/messages/${msgId}`),
+  deleteDmMessageForMe:   (convId, msgId)          => request('DELETE', `/dm/${convId}/messages/${msgId}/me`),
+  deleteDmConv:           (convId)                 => request('DELETE', `/dm/${convId}`),
   markDmRead:         (convId)          => request('POST', `/dm/${convId}/read`),
   pinDmMessage:       (convId, msgId)   => request('POST', `/dm/${convId}/pin`, { message_id: msgId }),
   unpinDmMessage:     (convId)          => request('DELETE', `/dm/${convId}/pin`),

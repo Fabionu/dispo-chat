@@ -142,18 +142,22 @@ router.get('/:id/messages', async (req, res) => {
   if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
 
   try {
-    const cursorClause = beforeId ? `AND m.id < $3` : ''
+    const params = [convId, PAGE_SIZE + 1, req.user.id]
+    const cursorClause = beforeId ? `AND m.id < $4` : ''
+    if (beforeId) params.push(beforeId)
 
     const { rows: rawRows } = await pool.query(`
       SELECT
-        m.id, m.content, m.created_at,
+        m.id, m.content, m.created_at, m.deleted,
         u.id AS sender_id, u.first_name, u.last_name, u.username
       FROM dm_messages m
       JOIN users u ON u.id = m.sender_id
-      WHERE m.conv_id = $1 ${cursorClause}
+      WHERE m.conv_id = $1
+        AND NOT (m.deleted_for @> jsonb_build_array($3))
+        ${cursorClause}
       ORDER BY m.created_at DESC
       LIMIT $2
-    `, beforeId ? [convId, PAGE_SIZE + 1, beforeId] : [convId, PAGE_SIZE + 1])
+    `, params)
 
     const hasMore = rawRows.length > PAGE_SIZE
     const rows = rawRows.slice(0, PAGE_SIZE).reverse()
@@ -169,7 +173,14 @@ router.get('/:id/messages', async (req, res) => {
 
     const pinned_message = pinRow?.id ? pinRow : null
 
-    res.json({ messages: rows, has_more: hasMore, pinned_message })
+    // Other user's read cursor (to color own-message checkmarks)
+    const { rows: [cursorRow] } = await pool.query(
+      `SELECT last_read_at FROM dm_read_cursors WHERE conv_id = $1 AND user_id != $2 LIMIT 1`,
+      [convId, req.user.id]
+    )
+    const other_read_at = cursorRow?.last_read_at || null
+
+    res.json({ messages: rows, has_more: hasMore, pinned_message, other_read_at })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
@@ -195,6 +206,108 @@ router.post('/:id/messages', async (req, res) => {
       [convId, req.user.id, content.trim()]
     )
     res.status(201).json({ message: msg })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// PATCH /api/dm/:id/messages/:msgId — edit own DM message within 5 min
+router.patch('/:id/messages/:msgId', async (req, res) => {
+  const convId = parseInt(req.params.id)
+  const msgId  = parseInt(req.params.msgId)
+  const { content } = req.body
+  if (!content?.trim()) return res.status(400).json({ error: 'content is required' })
+
+  const { rows: auth } = await pool.query(
+    'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+    [convId, req.user.id]
+  )
+  if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
+
+  try {
+    const { rows: [msg] } = await pool.query(
+      'SELECT id, sender_id, created_at FROM dm_messages WHERE id = $1 AND conv_id = $2',
+      [msgId, convId]
+    )
+    if (!msg) return res.status(404).json({ error: 'Message not found' })
+    if (msg.sender_id !== req.user.id) return res.status(403).json({ error: 'Can only edit own messages' })
+    if (Date.now() - new Date(msg.created_at).getTime() > 5 * 60 * 1000) {
+      return res.status(403).json({ error: 'Cannot edit messages older than 5 minutes' })
+    }
+
+    const { rows: [updated] } = await pool.query(
+      'UPDATE dm_messages SET content = $1, edited_at = NOW() WHERE id = $2 RETURNING *',
+      [content.trim(), msgId]
+    )
+
+    req.io.to(`dm:${convId}`).emit('message:edited', {
+      id: msgId, conv_id: convId, content: updated.content, edited_at: updated.edited_at,
+    })
+
+    res.json({ message: updated })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// DELETE /api/dm/:id/messages/:msgId — delete for everyone (author only)
+router.delete('/:id/messages/:msgId', async (req, res) => {
+  const convId = parseInt(req.params.id)
+  const msgId  = parseInt(req.params.msgId)
+
+  const { rows: auth } = await pool.query(
+    'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+    [convId, req.user.id]
+  )
+  if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
+
+  try {
+    const { rows: [msg] } = await pool.query(
+      'SELECT id, sender_id FROM dm_messages WHERE id = $1 AND conv_id = $2',
+      [msgId, convId]
+    )
+    if (!msg) return res.status(404).json({ error: 'Message not found' })
+    if (msg.sender_id !== req.user.id) return res.status(403).json({ error: 'Can only delete own messages for everyone' })
+
+    await pool.query('UPDATE dm_messages SET deleted = true WHERE id = $1', [msgId])
+
+    req.io.to(`dm:${convId}`).emit('message:deleted', {
+      id: msgId, conv_id: convId, for_everyone: true,
+    })
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// DELETE /api/dm/:id/messages/:msgId/me — delete for me only
+router.delete('/:id/messages/:msgId/me', async (req, res) => {
+  const convId = parseInt(req.params.id)
+  const msgId  = parseInt(req.params.msgId)
+
+  const { rows: auth } = await pool.query(
+    'SELECT 1 FROM dm_participants WHERE conv_id = $1 AND user_id = $2',
+    [convId, req.user.id]
+  )
+  if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
+
+  try {
+    const { rows: [msg] } = await pool.query(
+      'SELECT id FROM dm_messages WHERE id = $1 AND conv_id = $2',
+      [msgId, convId]
+    )
+    if (!msg) return res.status(404).json({ error: 'Message not found' })
+
+    await pool.query(
+      `UPDATE dm_messages SET deleted_for = deleted_for || jsonb_build_array($1) WHERE id = $2`,
+      [req.user.id, msgId]
+    )
+
+    res.json({ ok: true })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
@@ -294,12 +407,15 @@ router.post('/:id/read', async (req, res) => {
   )
   if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
   try {
-    await pool.query(
+    const { rows: [cursor] } = await pool.query(
       `INSERT INTO dm_read_cursors (conv_id, user_id, last_read_at)
        VALUES ($1, $2, NOW())
-       ON CONFLICT (conv_id, user_id) DO UPDATE SET last_read_at = NOW()`,
+       ON CONFLICT (conv_id, user_id) DO UPDATE SET last_read_at = NOW()
+       RETURNING last_read_at`,
       [convId, req.user.id]
     )
+    // Notify the other participant so their checkmarks update
+    req.io.to(`dm:${convId}`).emit('dm:read', { conv_id: convId, user_id: req.user.id, last_read_at: cursor.last_read_at })
     res.json({ ok: true })
   } catch (err) {
     console.error(err)

@@ -25,11 +25,14 @@ router.get('/', async (req, res) => {
   if (!member) return res.status(403).json({ error: 'Forbidden' })
 
   try {
-    const cursorClause = beforeId ? `AND m.id < $3` : ''
+    const params = [groupId, PAGE_SIZE + 1, req.user.id]
+    const cursorClause = beforeId ? `AND m.id < $4` : ''
+    if (beforeId) params.push(beforeId)
 
     const { rows: rawRows } = await pool.query(`
       SELECT
         m.id, m.type, m.content, m.created_at, m.edited_at,
+        m.deleted,
         u.id AS sender_id, u.first_name, u.last_name, u.username,
         gm.role AS sender_role,
         m.reply_to_id,
@@ -41,10 +44,12 @@ router.get('/', async (req, res) => {
       JOIN group_members gm ON gm.group_id = m.group_id AND gm.user_id = m.sender_id
       LEFT JOIN group_messages rm ON rm.id = m.reply_to_id
       LEFT JOIN users ru ON ru.id = rm.sender_id
-      WHERE m.group_id = $1 ${cursorClause}
+      WHERE m.group_id = $1
+        AND NOT (m.deleted_for @> jsonb_build_array($3))
+        ${cursorClause}
       ORDER BY m.created_at DESC
       LIMIT $2
-    `, beforeId ? [groupId, PAGE_SIZE + 1, beforeId] : [groupId, PAGE_SIZE + 1])
+    `, params)
 
     const hasMore = rawRows.length > PAGE_SIZE
     const rows = rawRows.slice(0, PAGE_SIZE).reverse()
@@ -123,6 +128,60 @@ router.patch('/:id', async (req, res) => {
     })
 
     res.json({ message: updated })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// DELETE /api/group-messages/:id — delete for everyone (author or admin)
+router.delete('/:id', async (req, res) => {
+  const msgId = parseInt(req.params.id)
+  try {
+    const { rows: [msg] } = await pool.query(
+      'SELECT id, group_id, sender_id FROM group_messages WHERE id = $1',
+      [msgId]
+    )
+    if (!msg) return res.status(404).json({ error: 'Message not found' })
+
+    const member = await isMember(msg.group_id, req.user.id)
+    if (!member) return res.status(403).json({ error: 'Forbidden' })
+    if (msg.sender_id !== req.user.id && member.role !== 'admin') {
+      return res.status(403).json({ error: 'Only author or admin can delete for everyone' })
+    }
+
+    await pool.query('UPDATE group_messages SET deleted = true WHERE id = $1', [msgId])
+
+    req.io.to(`group:${msg.group_id}`).emit('message:deleted', {
+      id: msgId, group_id: msg.group_id, for_everyone: true,
+    })
+
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// DELETE /api/group-messages/:id/me — delete for me only
+router.delete('/:id/me', async (req, res) => {
+  const msgId = parseInt(req.params.id)
+  try {
+    const { rows: [msg] } = await pool.query(
+      'SELECT id, group_id FROM group_messages WHERE id = $1',
+      [msgId]
+    )
+    if (!msg) return res.status(404).json({ error: 'Message not found' })
+
+    const member = await isMember(msg.group_id, req.user.id)
+    if (!member) return res.status(403).json({ error: 'Forbidden' })
+
+    await pool.query(
+      `UPDATE group_messages SET deleted_for = deleted_for || jsonb_build_array($1) WHERE id = $2`,
+      [req.user.id, msgId]
+    )
+
+    res.json({ ok: true })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })

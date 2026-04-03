@@ -31,7 +31,7 @@ router.post('/', async (req, res) => {
       `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'admin')`,
       [group.id, req.user.id]
     )
-    res.status(201).json({ group })
+    res.status(201).json({ group: { ...group, role: 'admin' } })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Server error' })
@@ -156,6 +156,16 @@ router.post('/:id/members', async (req, res) => {
       [group_id, target.id, role]
     )
     req.io.to(`group:${group_id}`).emit('group:member_added', { user: target, role })
+
+    // Notify the added user on their personal room so their sidebar updates instantly
+    const { rows: [grp] } = await pool.query(
+      `SELECT g.id, g.name, g.description, g.invite_code, $3::text AS role,
+         NULL::text AS last_message, NULL::timestamptz AS last_message_at
+       FROM groups g WHERE g.id = $1`,
+      [group_id, target.id, role]
+    )
+    req.io.to(`user:${target.id}`).emit('group:you_were_added', grp)
+
     res.status(201).json({ user: target, role })
   } catch (err) {
     console.error(err)

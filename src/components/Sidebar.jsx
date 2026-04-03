@@ -434,13 +434,20 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
       })
     }
 
-    socket.on('message:new', handleMessage)
-    socket.on('unread:new',  handleUnread)
-    return () => {
-      socket.off('message:new', handleMessage)
-      socket.off('unread:new',  handleUnread)
+    const handleGroupAdded = (group) => {
+      // The current user was added to a new group — refresh groups via onGroupCreated
+      onGroupCreated?.(group)
     }
-  }, [loadDms])
+
+    socket.on('message:new',          handleMessage)
+    socket.on('unread:new',           handleUnread)
+    socket.on('group:you_were_added', handleGroupAdded)
+    return () => {
+      socket.off('message:new',          handleMessage)
+      socket.off('unread:new',           handleUnread)
+      socket.off('group:you_were_added', handleGroupAdded)
+    }
+  }, [loadDms, onGroupCreated])
 
   // ─── Socket: typing indicators ─────────────────────────────────
   useEffect(() => {
@@ -476,14 +483,20 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
     .filter(g => search === '' || g.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       const pa = pinnedConvs.has(`group:${a.id}`), pb = pinnedConvs.has(`group:${b.id}`)
-      return pa === pb ? 0 : pa ? -1 : 1
+      if (pa !== pb) return pa ? -1 : 1
+      if (!a.last_message_at) return 1
+      if (!b.last_message_at) return -1
+      return new Date(b.last_message_at) - new Date(a.last_message_at)
     })
 
   const filteredDms = dmConvs
     .filter(c => search === '' || `${c.first_name} ${c.last_name}`.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       const pa = pinnedConvs.has(`dm:${a.conv_id}`), pb = pinnedConvs.has(`dm:${b.conv_id}`)
-      return pa === pb ? 0 : pa ? -1 : 1
+      if (pa !== pb) return pa ? -1 : 1
+      if (!a.last_message_at) return 1
+      if (!b.last_message_at) return -1
+      return new Date(b.last_message_at) - new Date(a.last_message_at)
     })
 
   return (
@@ -510,12 +523,6 @@ export default function Sidebar({ user, groups, unreads = {}, userStatuses = {},
             <>
               <div className="fixed inset-0 z-[60]" onClick={() => setShowHeaderMenu(false)} />
               <div className="absolute right-0 top-full mt-1 z-[70] border rounded-xl overflow-hidden shadow-xl min-w-[180px]" style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}>
-                <button
-                  onClick={() => { setShowCreateGroup(true); setShowHeaderMenu(false) }}
-                  className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
-                >
-                  <IconPlus size={12} stroke={2} /> Create group
-                </button>
                 <button
                   onClick={() => { onMarkAllRead?.(); setShowHeaderMenu(false) }}
                   className="w-full text-left px-4 py-2.5 text-xs text-white/50 hover:text-white/80 hover:bg-white/[0.09] transition flex items-center gap-2.5"
