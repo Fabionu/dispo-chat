@@ -281,20 +281,66 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
           </button>
         )}
 
-        {/* Bubble */}
-        <div
-          className={`rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words
-          ${isOwn ? 'text-white/90 rounded-br-sm' : 'text-white/80 rounded-bl-sm'}
-          ${isPinned ? 'ring-1 ring-amber-400/20' : ''}`}
-          style={{
-            background: isOwn ? 'var(--c-msg-own)' : 'var(--c-msg-other)',
-            padding: 'var(--c-bubble-py) var(--c-bubble-px)',
-          }}
-        >
-          <MessageText content={msg.content} highlight={highlight} />
-          {msg.edited_at && (
-            <span className="text-[10px] text-white/20 ml-1.5 select-none">(edited)</span>
-          )}
+        {/* Bubble + chevron on same row, so chevron always aligns with bubble top */}
+        <div className={`flex items-start gap-1 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+          {/* Bubble */}
+          <div
+            className={`rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words
+            ${isOwn ? 'text-white/90 rounded-br-sm' : 'text-white/80 rounded-bl-sm'}
+            ${isPinned ? 'ring-1 ring-amber-400/20' : ''}`}
+            style={{
+              background: isOwn ? 'var(--c-msg-own)' : 'var(--c-msg-other)',
+              padding: 'var(--c-bubble-py) var(--c-bubble-px)',
+            }}
+          >
+            <MessageText content={msg.content} highlight={highlight} />
+            {msg.edited_at && (
+              <span className="text-[10px] text-white/20 ml-1.5 select-none">(edited)</span>
+            )}
+          </div>
+
+          {/* Chevron trigger + dropdown */}
+          <div
+            className={`relative flex-shrink-0 transition-opacity mt-1.5 ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}
+          >
+            <button
+              ref={chevronRef}
+              onClick={(e) => {
+                e.stopPropagation()
+                const rect = chevronRef.current?.getBoundingClientRect()
+                setOpenUpward(rect ? rect.bottom > window.innerHeight - 160 : false)
+                setMenuOpen(v => !v)
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              className={`w-6 h-6 flex items-center justify-center rounded-lg transition
+                ${menuOpen
+                  ? 'text-white/80 bg-white/[0.14]'
+                  : 'text-white/60 bg-white/[0.08] hover:text-white/90 hover:bg-white/[0.16]'}`}
+            >
+              <IconChevronDown size={13} stroke={2.2} />
+            </button>
+
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-[49]" onClick={() => setMenuOpen(false)} />
+                <div
+                  className={`absolute z-50 border rounded-xl overflow-hidden shadow-xl min-w-[130px] ${isOwn ? 'left-0' : 'right-0'} ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+                  style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}
+                >
+                  {menuItems.map(item => (
+                    <button
+                      key={item.label}
+                      onClick={(e) => { e.stopPropagation(); item.action(); setMenuOpen(false) }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-white/45 hover:text-white/80 hover:bg-white/[0.09] transition text-left"
+                    >
+                      <span className="flex-shrink-0">{item.icon}</span>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Link preview */}
@@ -320,53 +366,6 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
               )
             )}
           </div>
-        )}
-      </div>
-
-      {/* Chevron trigger + dropdown */}
-      <div
-        className={`relative flex-shrink-0 transition-opacity ${menuOpen ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'}`}
-        style={{
-          marginTop: `${(!isOwn && showName ? 22 : 0) + (msg.replyTo ? 52 : 0) + 6}px`,
-          alignSelf: 'flex-start',
-        }}
-      >
-        <button
-          ref={chevronRef}
-          onClick={(e) => {
-            e.stopPropagation()
-            const rect = chevronRef.current?.getBoundingClientRect()
-            setOpenUpward(rect ? rect.bottom > window.innerHeight - 160 : false)
-            setMenuOpen(v => !v)
-          }}
-          onDoubleClick={(e) => e.stopPropagation()}
-          className={`w-6 h-6 flex items-center justify-center rounded-lg transition
-            ${menuOpen
-              ? 'text-white/80 bg-white/[0.14]'
-              : 'text-white/60 bg-white/[0.08] hover:text-white/90 hover:bg-white/[0.16]'}`}
-        >
-          <IconChevronDown size={13} stroke={2.2} />
-        </button>
-
-        {menuOpen && (
-          <>
-            <div className="fixed inset-0 z-[49]" onClick={() => setMenuOpen(false)} />
-            <div
-              className={`absolute z-50 border rounded-xl overflow-hidden shadow-xl min-w-[130px] ${isOwn ? 'right-0' : 'left-0'} ${openUpward ? 'bottom-full mb-1' : 'top-full mt-1'}`}
-              style={{ background: 'var(--c-surface3)', borderColor: 'var(--c-border-md)' }}
-            >
-              {menuItems.map(item => (
-                <button
-                  key={item.label}
-                  onClick={(e) => { e.stopPropagation(); item.action(); setMenuOpen(false) }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-white/45 hover:text-white/80 hover:bg-white/[0.09] transition text-left"
-                >
-                  <span className="flex-shrink-0">{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </>
         )}
       </div>
     </div>
