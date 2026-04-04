@@ -7,17 +7,27 @@ import { playReceive } from '../services/sounds.js'
 import AddMemberModal from './AddMemberModal.jsx'
 import GroupSettingsModal from './GroupSettingsModal.jsx'
 
-// ─── URL / highlight parsing ──────────────────────────────────
+// ─── URL / highlight / mention parsing ───────────────────────
 const URL_RE = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
 
-function parseContent(text, highlight) {
+// Combined regex: URLs first, then @mentions
+const CONTENT_RE = /https?:\/\/[^\s<>"{}|\\^`[\]]+|@(\w+)/gi
+
+function parseContent(text, highlight, currentUsername) {
   const segs = []
-  const re = new RegExp('https?:\\/\\/[^\\s<>"{}|\\\\^`[\\]]+', 'gi')
-  re.lastIndex = 0
+  CONTENT_RE.lastIndex = 0
   let last = 0, m
-  while ((m = re.exec(text)) !== null) {
+  while ((m = CONTENT_RE.exec(text)) !== null) {
     if (m.index > last) splitHighlight(text.slice(last, m.index), highlight, segs)
-    segs.push({ type: 'url', value: m[0] })
+    if (m[1] !== undefined) {
+      // mention
+      const uname  = m[1].toLowerCase()
+      const isMe   = uname === currentUsername?.toLowerCase()
+      const isAll  = uname === 'all'
+      segs.push({ type: 'mention', value: m[0], username: m[1], isMe, isAll })
+    } else {
+      segs.push({ type: 'url', value: m[0] })
+    }
     last = m.index + m[0].length
   }
   if (last < text.length) splitHighlight(text.slice(last), highlight, segs)
@@ -36,8 +46,8 @@ function splitHighlight(text, hl, out) {
   if (last < text.length) out.push({ type: 'text', value: text.slice(last) })
 }
 
-function MessageText({ content, highlight }) {
-  const parts = parseContent(content, highlight)
+function MessageText({ content, highlight, currentUsername }) {
+  const parts = parseContent(content, highlight, currentUsername)
   return (
     <>
       {parts.map((p, i) => {
@@ -47,6 +57,15 @@ function MessageText({ content, highlight }) {
             style={{ color: 'var(--c-accent)' }}
             onClick={e => e.stopPropagation()}
           >{p.value}</a>
+        )
+        if (p.type === 'mention') return (
+          <span key={i}
+            className={`rounded px-0.5 font-semibold ${
+              p.isMe || p.isAll
+                ? 'text-[var(--c-accent)] bg-[var(--c-accent)]/15'
+                : 'text-[var(--c-accent)]/80'
+            }`}
+          >{p.value}</span>
         )
         if (p.type === 'match') return (
           <mark key={i} className="rounded px-0.5"
@@ -214,7 +233,7 @@ function SystemMessage({ content }) {
   )
 }
 
-function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onReply, onEdit, onPin, onDelete, pinnedMsgId, isGroup, highlighted, onRef, onScrollTo, highlight, onAvatarClick, dmOtherReadAt }) {
+function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onReply, onEdit, onPin, onDelete, pinnedMsgId, isGroup, highlighted, onRef, onScrollTo, highlight, onAvatarClick, dmOtherReadAt, currentUsername }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuStyle, setMenuStyle] = useState({})
   const chevronRef = useRef(null)
@@ -319,7 +338,7 @@ function Message({ msg, isOwn, showAvatar, showName, showTime, onOpenReads, onRe
             {msg.deleted
               ? <span className="italic text-white/30 select-none">This message was deleted</span>
               : <>
-                  <MessageText content={msg.content} highlight={highlight} />
+                  <MessageText content={msg.content} highlight={highlight} currentUsername={currentUsername} />
                   {msg.edited_at && (
                     <span className="text-[10px] text-white/20 ml-1.5 select-none">(edited)</span>
                   )}
@@ -757,6 +776,9 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   const [loadingMore, setLoadingMore]         = useState(false)
   const [showScrollBtn, setShowScrollBtn]     = useState(false)
   const [dmOtherReadAt, setDmOtherReadAt]     = useState(null) // DM: other user's last_read_at
+  const [mentionQuery, setMentionQuery]       = useState(null) // null=closed, string=filtering
+  const [mentionIdx, setMentionIdx]           = useState(0)
+  const mentionStartRef                       = useRef(-1)
   const searchInputRef                        = useRef(null)
   const bottomRef                             = useRef(null)
   const topRef                                = useRef(null)
@@ -772,6 +794,37 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   const dmConvId  = activeConversation?.type === 'dm'    ? activeConversation.convId : null
   const otherUser = activeConversation?.type === 'dm'    ? activeConversation.otherUser : null
   const isAdmin   = group?.role === 'admin'
+
+  // ─── Mention suggestions ──────────────────────────────────────
+  const mentionList = useMemo(() => {
+    if (mentionQuery === null || !group) return []
+    const q = mentionQuery.toLowerCase()
+    const allOption = { id: 'all', username: 'all', first_name: 'All', last_name: '' }
+    const filtered = members.filter(m =>
+      m.id !== user.id && (
+        !q ||
+        m.username.toLowerCase().includes(q) ||
+        m.first_name.toLowerCase().includes(q) ||
+        m.last_name.toLowerCase().includes(q)
+      )
+    )
+    const showAll = !q || 'all'.startsWith(q)
+    return [...(showAll ? [allOption] : []), ...filtered]
+  }, [mentionQuery, members, user.id, group])
+
+  const selectMention = useCallback((member) => {
+    const before = input.slice(0, mentionStartRef.current)
+    const after  = input.slice(mentionStartRef.current).replace(/@\w*/, '')
+    const insert = `@${member.username} `
+    const newVal = before + insert + after
+    setInput(newVal)
+    setMentionQuery(null)
+    setTimeout(() => {
+      const pos = before.length + insert.length
+      textareaRef.current?.setSelectionRange(pos, pos)
+      textareaRef.current?.focus()
+    }, 0)
+  }, [input])
 
   // ─── Socket: messages + member events ────────────────────────
   useEffect(() => {
@@ -1126,8 +1179,8 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
     else { setSearchQuery(''); setSearchIdx(0) }
   }, [searchOpen])
 
-  // Reset search when conversation changes
-  useEffect(() => { setSearchOpen(false); setSearchQuery(''); setSearchIdx(0) }, [activeConversation])
+  // Reset search + mentions when conversation changes
+  useEffect(() => { setSearchOpen(false); setSearchQuery(''); setSearchIdx(0); setMentionQuery(null) }, [activeConversation])
 
   // Ctrl+F shortcut
   useEffect(() => {
@@ -1298,7 +1351,23 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   }
 
   const handleInputChange = (e) => {
-    setInput(e.target.value)
+    const val = e.target.value
+    setInput(val)
+
+    // Mention detection (only in group chats)
+    if (group) {
+      const cursor       = e.target.selectionStart ?? val.length
+      const beforeCursor = val.slice(0, cursor)
+      const atMatch      = beforeCursor.match(/@(\w*)$/)
+      if (atMatch) {
+        mentionStartRef.current = beforeCursor.lastIndexOf('@')
+        setMentionQuery(atMatch[1])
+        setMentionIdx(0)
+      } else {
+        if (mentionQuery !== null) setMentionQuery(null)
+      }
+    }
+
     const socket = getSocket()
     const room   = group ? `group:${group.id}` : dmConvId ? `dm:${dmConvId}` : null
     if (!socket || !room || editingMsg) return
@@ -1310,6 +1379,17 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
   }
 
   const handleKey = (e) => {
+    // Mention popup navigation
+    if (mentionQuery !== null && mentionList.length > 0) {
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIdx(i => (i - 1 + mentionList.length) % mentionList.length); return }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => (i + 1) % mentionList.length); return }
+      if (e.key === 'Tab' || (e.key === 'Enter' && mentionList.length > 0)) {
+        e.preventDefault()
+        selectMention(mentionList[mentionIdx])
+        return
+      }
+      if (e.key === 'Escape') { setMentionQuery(null); return }
+    }
     if (e.key === 'Escape') { cancelCompose(); return }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
@@ -1476,6 +1556,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
               onPin={handlePin}
               onDelete={handleDelete}
               dmOtherReadAt={dmOtherReadAt}
+              currentUsername={user.username}
             />
           )
         })}
@@ -1547,7 +1628,34 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       )}
 
       {/* Input */}
-      <div className="px-5 pb-5 pt-2">
+      <div className="px-5 pb-5 pt-2 relative">
+        {/* Mention popup */}
+        {mentionQuery !== null && mentionList.length > 0 && (
+          <div className="absolute bottom-full mb-1 left-5 right-5 bg-[var(--c-surface2)] border border-white/[0.08] rounded-xl shadow-xl overflow-hidden z-30" style={{ animation: 'dropdown-in 0.12s ease' }}>
+            {mentionList.map((m, i) => (
+              <button
+                key={m.id}
+                onMouseDown={e => { e.preventDefault(); selectMention(m) }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${i === mentionIdx ? 'bg-white/[0.08]' : 'hover:bg-white/[0.05]'}`}
+              >
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                  style={{ background: m.id === 'all' ? 'rgba(129,140,248,0.2)' : 'rgba(255,255,255,0.08)', color: 'var(--c-accent)' }}
+                >
+                  {m.id === 'all' ? '@' : `${m.first_name?.[0] ?? ''}${m.last_name?.[0] ?? ''}`.toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-white/80 truncate">
+                    {m.id === 'all' ? 'all' : `${m.first_name} ${m.last_name}`}
+                  </div>
+                  {m.id !== 'all' && (
+                    <div className="text-[10px] text-white/35 truncate">@{m.username}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-end gap-2 bg-white/[0.05] border border-white/[0.10] rounded-2xl px-4 py-2.5 focus-within:border-white/[0.20] transition-colors">
           <textarea
             ref={textareaRef}
@@ -1557,6 +1665,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
             placeholder={editingMsg ? 'Edit message...' : 'Message...'}
             rows={1}
             className="flex-1 bg-transparent text-sm text-white/90 placeholder-white/40 focus:outline-none resize-none py-1 min-h-[22px] max-h-[100px]"
+            onBlur={() => setTimeout(() => setMentionQuery(null), 100)}
           />
           <button
             onClick={handleSend}
