@@ -18,6 +18,7 @@ import groupMessageRoutes  from './routes/groupMessages.js'
 import usersRoutes         from './routes/users.js'
 import { registerSocketHandlers } from './socket/handlers.js'
 import { apiLimiter, authLimiter } from './middleware/rateLimiter.js'
+import pool from './db/pool.js'
 
 const app    = express()
 const server = createServer(app)
@@ -65,7 +66,26 @@ if (existsSync(distPath)) {
 
 registerSocketHandlers(io)
 
+// ─── Auto-migrations (idempotent) ────────────────────────────
+async function runMigrations() {
+  try {
+    await pool.query(`
+      ALTER TABLE group_messages    ADD COLUMN IF NOT EXISTS deleted      BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE group_messages    ADD COLUMN IF NOT EXISTS deleted_for  JSONB   NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE dm_messages       ADD COLUMN IF NOT EXISTS deleted      BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE dm_messages       ADD COLUMN IF NOT EXISTS deleted_for  JSONB   NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE groups            ADD COLUMN IF NOT EXISTS pinned_message_id INT REFERENCES group_messages(id) ON DELETE SET NULL;
+      ALTER TABLE dm_conversations  ADD COLUMN IF NOT EXISTS pinned_message_id INT REFERENCES dm_messages(id)   ON DELETE SET NULL;
+      ALTER TABLE users             ADD COLUMN IF NOT EXISTS preferences  JSONB   NOT NULL DEFAULT '{}'::jsonb;
+    `)
+    console.log('✓ Migrations OK')
+  } catch (err) {
+    console.error('Migration error:', err.message)
+  }
+}
+
 const PORT = process.env.PORT || 3001
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`✓ Server running on http://localhost:${PORT}`)
+  await runMigrations()
 })

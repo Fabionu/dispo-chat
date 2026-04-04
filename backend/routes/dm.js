@@ -142,7 +142,8 @@ router.get('/:id/messages', async (req, res) => {
   if (!auth.length) return res.status(403).json({ error: 'Forbidden' })
 
   try {
-    const params = [convId, PAGE_SIZE + 1, req.user.id]
+    const deletedForJson = JSON.stringify([req.user.id])
+    const params = [convId, PAGE_SIZE + 1, deletedForJson]
     const cursorClause = beforeId ? `AND m.id < $4` : ''
     if (beforeId) params.push(beforeId)
 
@@ -153,7 +154,7 @@ router.get('/:id/messages', async (req, res) => {
       FROM dm_messages m
       JOIN users u ON u.id = m.sender_id
       WHERE m.conv_id = $1
-        AND NOT (m.deleted_for @> jsonb_build_array($3))
+        AND NOT (m.deleted_for @> $3::jsonb)
         ${cursorClause}
       ORDER BY m.created_at DESC
       LIMIT $2
@@ -303,8 +304,8 @@ router.delete('/:id/messages/:msgId/me', async (req, res) => {
     if (!msg) return res.status(404).json({ error: 'Message not found' })
 
     await pool.query(
-      `UPDATE dm_messages SET deleted_for = deleted_for || jsonb_build_array($1) WHERE id = $2`,
-      [req.user.id, msgId]
+      `UPDATE dm_messages SET deleted_for = deleted_for || $1::jsonb WHERE id = $2`,
+      [JSON.stringify([req.user.id]), msgId]
     )
 
     res.json({ ok: true })
