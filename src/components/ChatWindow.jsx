@@ -1486,7 +1486,7 @@ export default function ChatWindow({ user, activeConversation, userStatuses = {}
       {showScrollBtn && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-4 right-5 z-20 w-8 h-8 flex items-center justify-center rounded-full border border-white/[0.12] bg-[var(--c-surface3)] shadow-lg transition-all hover:border-white/25 hover:scale-105"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-8 h-8 flex items-center justify-center rounded-full border border-white/[0.12] bg-[var(--c-surface3)] shadow-lg transition-all hover:border-white/25 hover:scale-105"
           title="Scroll to bottom"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-white/55">

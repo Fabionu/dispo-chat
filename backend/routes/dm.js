@@ -147,38 +147,36 @@ router.get('/:id/messages', async (req, res) => {
     const cursorClause = beforeId ? `AND m.id < $4` : ''
     if (beforeId) params.push(beforeId)
 
-    const { rows: rawRows } = await pool.query(`
-      SELECT
-        m.id, m.content, m.created_at, m.deleted,
-        u.id AS sender_id, u.first_name, u.last_name, u.username
-      FROM dm_messages m
-      JOIN users u ON u.id = m.sender_id
-      WHERE m.conv_id = $1
-        AND NOT (m.deleted_for @> $3::jsonb)
-        ${cursorClause}
-      ORDER BY m.created_at DESC
-      LIMIT $2
-    `, params)
+    // Run all 3 queries in parallel — single round-trip to DB
+    const [{ rows: rawRows }, { rows: [pinRow] }, { rows: [cursorRow] }] = await Promise.all([
+      pool.query(`
+        SELECT
+          m.id, m.content, m.created_at, m.deleted,
+          u.id AS sender_id, u.first_name, u.last_name, u.username
+        FROM dm_messages m
+        JOIN users u ON u.id = m.sender_id
+        WHERE m.conv_id = $1
+          AND NOT (m.deleted_for @> $3::jsonb)
+          ${cursorClause}
+        ORDER BY m.created_at DESC
+        LIMIT $2
+      `, params),
+      pool.query(`
+        SELECT m.id, m.content, u.first_name, u.last_name
+        FROM dm_conversations dc
+        LEFT JOIN dm_messages m ON m.id = dc.pinned_message_id
+        LEFT JOIN users u ON u.id = m.sender_id
+        WHERE dc.id = $1
+      `, [convId]),
+      pool.query(
+        `SELECT last_read_at FROM dm_read_cursors WHERE conv_id = $1 AND user_id != $2 LIMIT 1`,
+        [convId, req.user.id]
+      ),
+    ])
 
     const hasMore = rawRows.length > PAGE_SIZE
     const rows = rawRows.slice(0, PAGE_SIZE).reverse()
-
-    // Fetch pinned message
-    const { rows: [pinRow] } = await pool.query(`
-      SELECT m.id, m.content, u.first_name, u.last_name
-      FROM dm_conversations dc
-      LEFT JOIN dm_messages m ON m.id = dc.pinned_message_id
-      LEFT JOIN users u ON u.id = m.sender_id
-      WHERE dc.id = $1
-    `, [convId])
-
     const pinned_message = pinRow?.id ? pinRow : null
-
-    // Other user's read cursor (to color own-message checkmarks)
-    const { rows: [cursorRow] } = await pool.query(
-      `SELECT last_read_at FROM dm_read_cursors WHERE conv_id = $1 AND user_id != $2 LIMIT 1`,
-      [convId, req.user.id]
-    )
     const other_read_at = cursorRow?.last_read_at || null
 
     res.json({ messages: rows, has_more: hasMore, pinned_message, other_read_at })

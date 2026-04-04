@@ -95,6 +95,12 @@ async function runMigrations() {
       ALTER TABLE dm_conversations  ADD COLUMN IF NOT EXISTS pinned_message_id INT REFERENCES dm_messages(id)   ON DELETE SET NULL;
       ALTER TABLE users             ADD COLUMN IF NOT EXISTS preferences  JSONB   NOT NULL DEFAULT '{}'::jsonb;
     `)
+
+    // GIN indexes for JSONB @> containment queries on deleted_for
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_dm_messages_deleted_for    ON dm_messages    USING GIN (deleted_for);
+      CREATE INDEX IF NOT EXISTS idx_group_messages_deleted_for ON group_messages USING GIN (deleted_for);
+    `)
     console.log('✓ Migrations OK')
   } catch (err) {
     console.error('Migration error:', err.message)

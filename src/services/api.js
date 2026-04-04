@@ -27,6 +27,7 @@ export const api = {
   register: (first_name, last_name, username, email, password) =>
     request('POST', '/auth/register', { first_name, last_name, username, email, password }),
   me:            () => request('GET', '/auth/me'),
+  bootstrap:     () => request('GET', '/auth/bootstrap'),
   updateProfile: (data) => request('PATCH', '/auth/profile', data),
 
   // Groups

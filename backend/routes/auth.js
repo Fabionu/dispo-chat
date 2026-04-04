@@ -96,6 +96,64 @@ router.get('/me', async (req, res) => {
   }
 })
 
+// GET /api/auth/bootstrap — single call: me + groups + unreads
+router.get('/bootstrap', requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.id
+    const [userRes, groupsRes, unreadsRes] = await Promise.all([
+      pool.query(
+        `SELECT id, first_name, last_name, username, unique_code, avatar_url, status, preferences FROM users WHERE id = $1`,
+        [uid]
+      ),
+      pool.query(`
+        SELECT
+          g.id, g.name, g.description, g.invite_code, g.created_by,
+          gm.role,
+          lm.content    AS last_message,
+          lm.created_at AS last_message_at
+        FROM groups g
+        JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $1
+        LEFT JOIN LATERAL (
+          SELECT content, created_at FROM group_messages
+          WHERE group_id = g.id ORDER BY created_at DESC LIMIT 1
+        ) lm ON true
+        ORDER BY lm.created_at DESC NULLS LAST
+      `, [uid]),
+      pool.query(`
+        SELECT 'group' AS type, gm.group_id::text AS id, COUNT(*) AS count
+        FROM group_messages gm
+        JOIN group_members mem ON mem.group_id = gm.group_id AND mem.user_id = $1
+        LEFT JOIN group_read_cursors grc ON grc.group_id = gm.group_id AND grc.user_id = $1
+        WHERE gm.sender_id != $1
+          AND gm.created_at > COALESCE(grc.last_read_at, '1970-01-01')
+        GROUP BY gm.group_id
+
+        UNION ALL
+
+        SELECT 'dm' AS type, dm.conv_id::text AS id, COUNT(*) AS count
+        FROM dm_messages dm
+        JOIN dm_participants dp ON dp.conv_id = dm.conv_id AND dp.user_id = $1
+        LEFT JOIN dm_read_cursors drc ON drc.conv_id = dm.conv_id AND drc.user_id = $1
+        WHERE dm.sender_id != $1
+          AND dm.created_at > COALESCE(drc.last_read_at, '1970-01-01')
+        GROUP BY dm.conv_id
+      `, [uid]),
+    ])
+
+    if (!userRes.rows[0]) return res.status(404).json({ error: 'User not found' })
+
+    const unreads = {}
+    for (const row of unreadsRes.rows) {
+      unreads[`${row.type}:${row.id}`] = parseInt(row.count)
+    }
+
+    res.json({ user: userRes.rows[0], groups: groupsRes.rows, unreads })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 // PATCH /api/auth/profile — update avatar_url, status, and/or preferences
 router.patch('/profile', requireAuth, async (req, res) => {
   const { avatar_url, status, preferences } = req.body

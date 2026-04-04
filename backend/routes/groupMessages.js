@@ -30,40 +30,40 @@ router.get('/', async (req, res) => {
     const cursorClause = beforeId ? `AND m.id < $4` : ''
     if (beforeId) params.push(beforeId)
 
-    const { rows: rawRows } = await pool.query(`
-      SELECT
-        m.id, m.type, m.content, m.created_at, m.edited_at,
-        m.deleted,
-        u.id AS sender_id, u.first_name, u.last_name, u.username,
-        gm.role AS sender_role,
-        m.reply_to_id,
-        rm.content    AS reply_content,
-        ru.first_name AS reply_first_name,
-        ru.last_name  AS reply_last_name
-      FROM group_messages m
-      JOIN users u ON u.id = m.sender_id
-      JOIN group_members gm ON gm.group_id = m.group_id AND gm.user_id = m.sender_id
-      LEFT JOIN group_messages rm ON rm.id = m.reply_to_id
-      LEFT JOIN users ru ON ru.id = rm.sender_id
-      WHERE m.group_id = $1
-        AND NOT (m.deleted_for @> $3::jsonb)
-        ${cursorClause}
-      ORDER BY m.created_at DESC
-      LIMIT $2
-    `, params)
+    // Run both queries in parallel — single round-trip to DB
+    const [{ rows: rawRows }, { rows: [pinRow] }] = await Promise.all([
+      pool.query(`
+        SELECT
+          m.id, m.type, m.content, m.created_at, m.edited_at,
+          m.deleted,
+          u.id AS sender_id, u.first_name, u.last_name, u.username,
+          gm.role AS sender_role,
+          m.reply_to_id,
+          rm.content    AS reply_content,
+          ru.first_name AS reply_first_name,
+          ru.last_name  AS reply_last_name
+        FROM group_messages m
+        JOIN users u ON u.id = m.sender_id
+        JOIN group_members gm ON gm.group_id = m.group_id AND gm.user_id = m.sender_id
+        LEFT JOIN group_messages rm ON rm.id = m.reply_to_id
+        LEFT JOIN users ru ON ru.id = rm.sender_id
+        WHERE m.group_id = $1
+          AND NOT (m.deleted_for @> $3::jsonb)
+          ${cursorClause}
+        ORDER BY m.created_at DESC
+        LIMIT $2
+      `, params),
+      pool.query(`
+        SELECT m.id, m.content, u.first_name, u.last_name
+        FROM groups g
+        LEFT JOIN group_messages m ON m.id = g.pinned_message_id
+        LEFT JOIN users u ON u.id = m.sender_id
+        WHERE g.id = $1
+      `, [groupId]),
+    ])
 
     const hasMore = rawRows.length > PAGE_SIZE
     const rows = rawRows.slice(0, PAGE_SIZE).reverse()
-
-    // Fetch pinned message
-    const { rows: [pinRow] } = await pool.query(`
-      SELECT m.id, m.content, u.first_name, u.last_name
-      FROM groups g
-      LEFT JOIN group_messages m ON m.id = g.pinned_message_id
-      LEFT JOIN users u ON u.id = m.sender_id
-      WHERE g.id = $1
-    `, [groupId])
-
     const pinned_message = pinRow?.id ? pinRow : null
 
     res.json({ messages: rows, pinned_message, has_more: hasMore })
