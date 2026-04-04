@@ -38,6 +38,7 @@ const io     = new Server(server, {
   cors: { origin: CORS_ORIGIN, credentials: true },
 })
 
+app.set('trust proxy', 1)
 app.use(cors({ origin: CORS_ORIGIN, credentials: true }))
 app.use(express.json())
 app.use((req, _, next) => { req.io = io; next() })
@@ -69,6 +70,22 @@ registerSocketHandlers(io)
 // ─── Auto-migrations (idempotent) ────────────────────────────
 async function runMigrations() {
   try {
+    // Create cursor tables first (other migrations may depend on their existence indirectly)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS dm_read_cursors (
+        conv_id      INT         NOT NULL REFERENCES dm_conversations(id) ON DELETE CASCADE,
+        user_id      INT         NOT NULL REFERENCES users(id)            ON DELETE CASCADE,
+        last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (conv_id, user_id)
+      );
+      CREATE TABLE IF NOT EXISTS group_read_cursors (
+        group_id     INT         NOT NULL REFERENCES groups(id)           ON DELETE CASCADE,
+        user_id      INT         NOT NULL REFERENCES users(id)            ON DELETE CASCADE,
+        last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (group_id, user_id)
+      );
+    `)
+
     await pool.query(`
       ALTER TABLE group_messages    ADD COLUMN IF NOT EXISTS deleted      BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE group_messages    ADD COLUMN IF NOT EXISTS deleted_for  JSONB   NOT NULL DEFAULT '[]'::jsonb;
